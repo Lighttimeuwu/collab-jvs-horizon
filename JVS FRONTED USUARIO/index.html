@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Focus Produc</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+<!-- LOADER -->
+<div id="loader">Cargando...</div>
+<div id="comprobantePDF"></div>
+
+<!-- LOGIN -->
+<div id="login" class="modulo active">
+
+  <button class="nav-arrow back-admin-login" onclick="volverAdministrador()" title="Volver al administrador" aria-label="Volver al administrador">⬅️</button>
+
+  <h1>Focus Producciones</h1>
+
+  <div class="cuadro">
+    <input id="email" type="email" placeholder="Correo">
+    <input id="password" type="password" placeholder="Contraseña">
+    <button onclick="login()">Entrar</button>
+    <div id="error"></div>
+  </div>
+
+  <div class="links">
+    <a href="#" onclick="mostrar('registro')">Registrate aquí</a> |
+    <a href="#" onclick="mostrar('recuperar')">Olvidaste contraseña</a>
+  </div>
+
+</div>
+
+<!-- REGISTRO -->
+<div id="registro" class="modulo">
+
+  <h2>Registro</h2>
+  <input id="registroNombre" placeholder="Nombre">
+  <input id="registroApellido" placeholder="Apellidos">
+  <input id="registroCorreo" type="email" placeholder="Correo">
+
+  <input id="pass" type="password" placeholder="Contraseña">
+  <button onclick="togglePass()">Mostrar / Ocultar</button>
+
+  <input id="registroTelefono" placeholder="Teléfono">
+
+  <select id="pais" onchange="ciudades()">
+    <option>Colombia</option>
+    <option>México</option>
+    <option>España</option>
+    <option>Argentina</option>
+    <option>Chile</option>
+  </select>
+
+  <select id="ciudad"></select>
+
+  <p id="registroMensaje" class="registro-mensaje"></p>
+  <button onclick="registrarUsuario()">Registrarme</button>
+  <button onclick="mostrar('login')">Volver</button>
+
+</div>
+
+<!-- RECUPERAR CONTRASEÑA -->
+<div id="recuperar" class="modulo">
+
+  <h2>Recuperar contraseña</h2>
+
+  <input placeholder="Correo">
+  <button onclick="alert('Correo enviado correctamente')">Enviar código</button>
+  <button onclick="mostrar('login')">Volver</button>
+
+</div>
+
+<!-- EVENTOS -->
+<div id="eventos" class="modulo">
+
+  <button class="nav-arrow event-back-login" onclick="mostrar('login')" title="Volver al inicio de sesion" aria-label="Volver al inicio de sesion">⬅️</button>
+
+  <h2>Eventos Disponibles</h2>
+
+  <button class="btn-mis-entradas" onclick="mostrar('misEntradas'); cargarMisEntradas()">🎟️ Mis Entradas</button>
+
+  <div class="eventos" id="listaEventosUsuario">
+
+    <div class="evento" data-event-id="art1" data-event-key="FEID">
+      <img src="imagenes/feid.jpg.jpeg" alt="Feid">
+      <h3>Feid</h3>
+      <div class="event-card-actions">
+        <button onclick="verEventoBase('FEID')">Ver Evento</button>
+      </div>
+    </div>
+
+    <div class="evento" data-event-id="art5" data-event-key="KAROL G">
+      <img src="imagenes/karolg.jpeg.jpeg" alt="Karol G">
+      <h3>Karol G</h3>
+      <div class="event-card-actions">
+        <button onclick="verEventoBase('KAROL G')">Ver Evento</button>
+      </div>
+    </div>
+
+    <div class="evento" data-event-id="art4" data-event-key="DOOM">
+      <img src="imagenes/doom.jpg.jpg" alt="Doom">
+      <h3>Doom</h3>
+      <div class="event-card-actions">
+        <button onclick="verEventoBase('DOOM')">Ver Evento</button>
+      </div>
+    </div>
+
+    <div class="evento" data-event-id="art2" data-event-key="BAD BUNNY">
+      <img src="imagenes/badbunny.jpg.jpeg" alt="Bad Bunny">
+      <h3>Bad Bunny</h3>
+      <div class="event-card-actions">
+        <button onclick="verEventoBase('BAD BUNNY')">Ver Evento</button>
+      </div>
+    </div>
+
+    <div class="evento" data-event-id="art6" data-event-key="BASWELL">
+      <img src="imagenes/baswell.jpg.jpg" alt="Baswell">
+      <h3>Baswell</h3>
+      <div class="event-card-actions">
+        <button onclick="verEventoBase('BASWELL')">Ver Evento</button>
+      </div>
+    </div>
+
+    <div class="evento" data-event-id="art3" data-event-key="ROMEO SANTOS">
+      <img src="imagenes/romeo.jpg.jpg" alt="Romeo Santos">
+      <h3>Romeo Santos</h3>
+      <div class="event-card-actions">
+        <button onclick="verEventoBase('ROMEO SANTOS')">Ver Evento</button>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- MODAL DETALLE EVENTO -->
+<div id="modalEvento" class="event-modal" aria-hidden="true">
+  <div class="event-modal__overlay" onclick="cerrarModalEvento()"></div>
+  <section class="event-modal__panel" role="dialog" aria-modal="true" aria-labelledby="modalEventoNombre">
+    <button class="event-modal__close" onclick="cerrarModalEvento()" aria-label="Cerrar detalle">&times;</button>
+    <div class="event-modal__media">
+      <img id="modalEventoImagen" alt="Imagen del evento">
+    </div>
+    <div class="event-modal__content">
+      <span id="modalEventoGenero" class="event-modal__genre"></span>
+      <h2 id="modalEventoNombre"></h2>
+      <div class="event-modal__facts">
+        <p><strong>Hora</strong><span id="modalEventoHora"></span></p>
+        <p><strong>Lugar</strong><span id="modalEventoLugar"></span></p>
+      </div>
+      <div class="event-modal__copy">
+        <h3>Acerca del artista y el evento</h3>
+        <p id="modalEventoDescripcionGeneral"></p>
+      </div>
+      <button class="event-modal__buy" onclick="comprarDesdeModal()">Comprar Boletas</button>
+    </div>
+  </section>
+</div>
+
+<!-- MODAL SELECCION FECHA -->
+<div id="modalSeleccionFecha" class="date-modal" aria-hidden="true">
+  <div class="date-modal__overlay" onclick="cerrarModalSeleccionFecha()"></div>
+  <section class="date-modal__panel" role="dialog" aria-modal="true" aria-labelledby="modalFechaTitulo">
+    <button class="date-modal__close" onclick="cerrarModalSeleccionFecha()" aria-label="Cerrar seleccion">&times;</button>
+    <h2 id="modalFechaTitulo">Selecciona una fecha</h2>
+    <div id="opcionesFechaCompra" class="date-modal__options"></div>
+    <button class="date-modal__continue" onclick="continuarCompraConFecha()">Continuar</button>
+  </section>
+</div>
+
+<!-- MAPA DE ASIENTOS -->
+<div id="mapa" class="modulo">
+
+  <h2>Seleccionar Asientos</h2>
+
+  <section class="seat-dashboard">
+    <div>
+      <span class="seat-dashboard__label">Asientos seleccionados</span>
+      <strong id="contadorAsientos">0</strong>
+    </div>
+    <div>
+      <span class="seat-dashboard__label">Total de boletas</span>
+      <strong id="totalBoletasAsientos">0</strong>
+    </div>
+  </section>
+
+  <div class="seat-legend" aria-label="Estados de asientos">
+    <span><i class="legend-seat disponible"></i> Disponible</span>
+    <span><i class="legend-seat seleccionado"></i> Seleccionado</span>
+    <span><i class="legend-seat ocupado"></i> No disponible</span>
+  </div>
+
+  <div class="escenario"><span>ESCENARIO</span></div>
+
+  <div class="mapa">
+    <div class="zona" id="graderia1"><h4>Gradería Izquierda</h4></div>
+    <div class="zona" id="vip"><h4>VIP</h4></div>
+    <div class="zona" id="graderia2"><h4>Gradería Derecha</h4></div>
+  </div>
+
+  <button onclick="abrirPasarelaPSE()">Pagar asientos seleccionados</button>
+  <button onclick="mostrar('eventos')">Volver a eventos</button>
+
+</div>
+
+<!-- PASARELA PSE -->
+<div id="pse" class="modulo">
+  <section class="pse-shell">
+    <div class="pse-header">
+      <span class="pse-badge">PSE</span>
+      <div>
+        <h2>Pasarela de Pago</h2>
+        <p>Pago seguro para boletas Focus Producciones</p>
+      </div>
+    </div>
+
+    <div class="pse-grid">
+      <div class="pse-panel">
+        <h3>Datos del comprador</h3>
+        <div class="pse-form">
+          <label>Nombre Completo<input id="pseNombre" type="text" placeholder="Ej: Juan Perez"></label>
+          <label>Documento de Identidad<input id="pseDocumento" type="text" placeholder="Ej: 1000000000"></label>
+          <label>Correo Electronico<input id="pseCorreo" type="email" placeholder="correo@ejemplo.com"></label>
+          <label>Telefono<input id="pseTelefono" type="tel" placeholder="Ej: 3000000000"></label>
+        </div>
+      </div>
+
+      <div class="pse-panel pse-method-panel">
+        <h3>Metodo de pago</h3>
+        <div class="pse-method-card">
+          <span class="pse-method-logo">PSE</span>
+          <div>
+            <strong>Pagos Seguros en Linea</strong>
+            <p>Transaccion simulada para sustentacion.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pse-panel pse-summary-panel">
+        <h3>Resumen de compra</h3>
+        <div id="pseResumenCompra" class="pse-summary"></div>
+      </div>
+
+      <div class="pse-panel pse-total-panel">
+        <h3>Valores</h3>
+        <div id="pseResumenValores" class="pse-values"></div>
+        <div class="pse-actions">
+          <button type="button" class="pse-secondary" onclick="mostrar('mapa')">Volver a asientos</button>
+          <button type="button" class="pse-primary" onclick="confirmarPagoPSE()">Confirmar Pago</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- RESULTADO -->
+<div id="resultado" class="modulo">
+  <div id="lista"></div>
+
+  <img id="qr" alt="Código QR">
+
+  <br><br>
+
+  <button onclick="descargarPDF()">Descargar PDF</button>
+  <button onclick="mostrar('eventos')">Volver a eventos</button>
+
+</div>
+
+<!-- MIS ENTRADAS -->
+<div id="misEntradas" class="modulo">
+  <button class="nav-arrow" onclick="mostrar('eventos')" title="Volver a eventos" aria-label="Volver a eventos">⬅️</button>
+  <h2>Mis Entradas</h2>
+  <div id="misEntradasLista"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="script.js"></script>
+
+</body>
+</html>

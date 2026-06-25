@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Proveedores Técnicos</title>
+  <link rel="stylesheet" href="proveedores.css">
+</head>
+
+<body>
+
+<div class="container">
+
+  <h1>Proveedores Técnicos para Eventos</h1>
+
+  <!-- LISTA DE EVENTOS -->
+  <div class="events" id="eventList">
+
+    <div class="event" onclick="openModule('Feid')">
+      <img src="imagenes/feid.jpg.jpeg" alt="Feid">
+      <h3>Feid</h3>
+    </div>
+
+    <div class="event" onclick="openModule('Karol G')">
+      <img src="imagenes/karolg.jpeg.jpeg" alt="Karol G">
+      <h3>Karol G</h3>
+    </div>
+
+    <div class="event" onclick="openModule('Doom')">
+      <img src="imagenes/doom.jpg.jpg" alt="Doom">
+      <h3>Doom</h3>
+    </div>
+
+    <div class="event" onclick="openModule('Bad Bunny')">
+      <img src="imagenes/badbunny.jpg.jpeg" alt="Bad Bunny">
+      <h3>Bad Bunny</h3>
+    </div>
+
+    <div class="event" onclick="openModule('Basswell')">
+      <img src="imagenes/baswell.jpg.jpg" alt="Basswell">
+      <h3>Basswell</h3>
+    </div>
+
+    <div class="event" onclick="openModule('Romeo Santos')">
+      <img src="imagenes/romeo.jpg.jpg" alt="Romeo Santos">
+      <h3>Romeo Santos</h3>
+    </div>
+
+  </div>
+
+  <!-- MÓDULO DE PROVEEDORES -->
+  <div id="adminReturnArea" class="admin-return-area">
+    <button class="admin-return" onclick="volverAdministrador()">Menu administrador</button>
+  </div>
+
+  <div id="module" class="module">
+
+    <h2 id="eventTitle"></h2>
+
+    <div id="content"></div>
+
+    <button class="save"   onclick="save()">Guardar</button>
+    <button class="cancel" onclick="cancel()">Cancelar</button>
+
+  </div>
+
+  <div id="providerModule" class="module provider-module">
+    <h2 id="providerTitle"></h2>
+    <p class="helper-text">Selecciona una o varias empresas proveedoras para este evento.</p>
+    <div id="providerOptions" class="provider-options"></div>
+    <button class="save" onclick="guardarEmpresasEvento()">Guardar proveedores</button>
+    <button class="cancel" onclick="cerrarEditorProveedores()">Cancelar</button>
+  </div>
+
+</div>
+
+<script src="proveedores.js"></script>
+
+</body>
+</html>

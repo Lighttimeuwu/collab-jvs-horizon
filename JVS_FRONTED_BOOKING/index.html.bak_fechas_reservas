@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Agencia de Booking - Registro Pro</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header>
+    <h1 class="titulo-ola">
+        <span>B</span><span>O</span><span>O</span><span>K</span><span>I</span><span>N</span><span>G</span>
+        <span>&nbsp;</span><span>A</span><span>R</span><span>T</span><span>I</span><span>S</span><span>T</span><span>A</span><span>S</span>
+    </h1>
+    <p>Reserva artistas y gestiona tus invitados</p>
+</header>
+
+<nav class="nav-modulos">
+    <button class="btn-nav active" id="btn-booking" onclick="mostrarModulo('booking')">🛒 CARTELERA</button>
+    <button class="btn-nav" id="btn-raider" onclick="mostrarModulo('raider')">📄 MÓDULO TÉCNICO (RAIDER)</button>
+</nav>
+
+<!-- MÓDULO BOOKING -->
+<div id="modulo-booking" class="modulo active">
+    <div class="container">
+
+        <div class="artista" id="art1">
+            <button class="btn-edit" onclick="abrirEditor('art1')">⚙️ Cambiar fechas</button>
+            <img src="https://laradioteescucha.com/wp-content/uploads/2025/04/feid.png" alt="Feid">
+            <div class="info">
+                <h3>Cantante Feid - Ferxxo</h3>
+                <div class="agenda">
+                    <p class="disponible">● Agenda disponible</p>
+                    <ul class="lista-agenda">
+                        <li>📅 20 Marzo 2026 - Bogotá</li>
+                        <li>📅 25 Marzo 2026 - Medellín</li>
+                        <li>📅 30 Marzo 2026 - Cali</li>
+                    </ul>
+                </div>
+                <button class="btn btn-principal" onclick="abrirInvitados('art1')">Reservar / Invitados</button>
+                <button class="btn" onclick="saltarARaider('art1')" style="background:#2196F3; font-size:12px;">Ver Rider Técnico</button>
+            </div>
+        </div>
+
+        <div class="artista" id="art2">
+            <button class="btn-edit" onclick="abrirEditor('art2')">⚙️ Cambiar fechas</button>
+            <img src="https://ichef.bbci.co.uk/ace/ws/640/cpsprodpb/1486E/production/_126987048_gettyimages-1420926726.jpg.webp" alt="Bad Bunny">
+            <div class="info">
+                <h3>Cantante Bad Bunny</h3>
+                <div class="agenda">
+                    <p class="disponible">● Agenda disponible</p>
+                    <ul class="lista-agenda">
+                        <li>📅 28 Marzo 2026 - Bogotá</li>
+                        <li>📅 30 Abril 2026 - Medellín</li>
+                        <li>📅 10 Agosto 2026 - Valledupar</li>
+                    </ul>
+                </div>
+                <button class="btn btn-principal" onclick="abrirInvitados('art2')">Reservar / Invitados</button>
+                <button class="btn" onclick="saltarARaider('art2')" style="background:#2196F3; font-size:12px;">Ver Rider Técnico</button>
+            </div>
+        </div>
+
+        <div class="artista" id="art3">
+            <button class="btn-edit" onclick="abrirEditor('art3')">⚙️ Cambiar fechas</button>
+            <img src="https://realfm.com.co/wp-content/uploads/2025/02/Santos-Romeo-2000-3b03b36b24594b92a8bdbfde570269f9.jpg" alt="Romeo">
+            <div class="info">
+                <h3>Cantante Romeo Santos</h3>
+                <div class="agenda">
+                    <p class="disponible">● Agenda disponible</p>
+                    <ul class="lista-agenda">
+                        <li>📅 25 Marzo 2026 - Bogotá</li>
+                        <li>📅 15 Septiembre 2026 - Cali</li>
+                        <li>📅 02 Octubre 2026 - Puerto Rico</li>
+                    </ul>
+                </div>
+                <button class="btn btn-principal" onclick="abrirInvitados('art3')">Reservar / Invitados</button>
+                <button class="btn" onclick="saltarARaider('art3')" style="background:#2196F3; font-size:12px;">Ver Rider Técnico</button>
+            </div>
+        </div>
+
+        <div class="artista" id="art4">
+            <button class="btn-edit" onclick="abrirEditor('art4')">⚙️ Cambiar fechas</button>
+            <img src="https://codigos.allticketscol.com/1760742559427_DOGYJ500x262.webp" alt="Doom">
+            <div class="info">
+                <h3>Evento Techno</h3>
+                <div class="agenda">
+                    <p class="disponible">● Agenda disponible</p>
+                    <ul class="lista-agenda">
+                        <li>📅 04 Abril 2026 - Bogotá</li>
+                        <li>📅 14 Septiembre 2026 - Cali</li>
+                        <li>📅 22 Octubre 2026 - Medellín</li>
+                    </ul>
+                </div>
+                <button class="btn btn-principal" onclick="abrirInvitados('art4')">Reservar / Invitados</button>
+                <button class="btn" onclick="saltarARaider('art4')" style="background:#2196F3; font-size:12px;">Ver Rider Técnico</button>
+            </div>
+        </div>
+
+        <div class="artista" id="art5">
+            <button class="btn-edit" onclick="abrirEditor('art5')">⚙️ Cambiar fechas</button>
+            <img src="https://www.clarin.com/2022/11/10/_2iKL67fb_2000x1500__1.jpg" alt="Karol G">
+            <div class="info">
+                <h3>Cantante Karol G</h3>
+                <div class="agenda">
+                    <p class="disponible">● Agenda disponible</p>
+                    <ul class="lista-agenda">
+                        <li>📅 01 Abril 2026 - Bogotá</li>
+                        <li>📅 15 Septiembre 2026 - Huila</li>
+                        <li>📅 27 Octubre 2026 - Medellín</li>
+                    </ul>
+                </div>
+                <button class="btn btn-principal" onclick="abrirInvitados('art5')">Reservar / Invitados</button>
+                <button class="btn" onclick="saltarARaider('art5')" style="background:#2196F3; font-size:12px;">Ver Rider Técnico</button>
+            </div>
+        </div>
+
+        <div class="artista" id="art6">
+            <button class="btn-edit" onclick="abrirEditor('art6')">⚙️ Cambiar fechas</button>
+            <img src="https://i.scdn.co/image/ab6761610000e5ebb8244c7eacde3b8c71399f01" alt="Baswell">
+            <div class="info">
+                <h3>Evento Rave</h3>
+                <div class="agenda">
+                    <p class="disponible">● Agenda disponible</p>
+                    <ul class="lista-agenda">
+                        <li>📅 13 Abril 2026 - Bogotá</li>
+                        <li>📅 31 Junio 2026 - Huila</li>
+                        <li>📅 14 Octubre 2026 - Medellín</li>
+                    </ul>
+                </div>
+                <button class="btn btn-principal" onclick="abrirInvitados('art6')">Reservar / Invitados</button>
+                <button class="btn" onclick="saltarARaider('art6')" style="background:#2196F3; font-size:12px;">Ver Rider Técnico</button>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- MÓDULO RAIDER -->
+<div id="modulo-raider" class="modulo">
+    <div class="panel-raider">
+        <h2 style="color:#c50b0b; border-bottom:2px solid #333;">Gestión de Requerimientos Técnicos</h2>
+        <p>Selecciona un artista y vincula su Rider (.pdf, .doc):</p>
+
+        <div style="margin:20px 0; display:flex; gap:10px; align-items:center;">
+            <select id="selectArtistaRider" style="padding:10px; border-radius:5px; flex-grow:1;">
+                <option value="art1">Feid</option>
+                <option value="art2">Bad Bunny</option>
+                <option value="art3">Romeo Santos</option>
+                <option value="art4">Evento Techno</option>
+                <option value="art5">Karol G</option>
+                <option value="art6">Evento Rave</option>
+            </select>
+            <input type="file" id="inputArchivoRider">
+            <button class="btn" onclick="vincularRider()" style="margin:0; background:#4CAF50;">Guardar Rider</button>
+        </div>
+
+        <table class="tabla-raider">
+            <thead>
+                <tr>
+                    <th>Artista</th>
+                    <th>Estado Documento</th>
+                    <th>Archivo Vinculado</th>
+                    <th>Abrir</th>
+                    <th>Acción</th>
+                </tr>
+            </thead>
+            <tbody id="cuerpoTablaRider"></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- MODAL EDITAR FECHAS -->
+<div id="miModal" class="modal">
+    <div class="modal-content">
+        <h2 id="editTitle">Modificar Fechas</h2>
+        <input type="text" id="inputFecha1"><br>
+        <input type="text" id="inputFecha2"><br>
+        <input type="text" id="inputFecha3"><br>
+        <button class="btn" onclick="guardarAgenda()" style="background:#4CAF50;">Guardar</button>
+        <button class="btn" onclick="cerrarModal()" style="background:#777;">Cerrar</button>
+    </div>
+</div>
+
+<!-- MODAL INVITADOS -->
+<div id="modalInvitados" class="modal">
+    <div class="modal-content">
+        <h2 id="invitadosTitle" style="color:#4244da;">Módulo Invitados</h2>
+        <div style="border:1px dashed #ccc; padding:10px;">
+            <input type="text" id="inputNombreInv" placeholder="Nombre completo">
+            <p style="font-size:11px; margin:5px 0;">Sube una foto:</p>
+            <input type="file" id="inputFotoInv" accept="image/*">
+            <button class="btn" onclick="agregarInvitado()" style="margin-top:10px;">+ Agregar</button>
+        </div>
+        <ul id="listaNombres"></ul>
+        <button class="btn" onclick="confirmarYReservar()" style="background:#4CAF50; width:100%; margin-top:10px;">FINALIZAR Y RESERVAR</button>
+        <button class="btn" id="btnQuitarReserva" onclick="quitarReserva()" style="background:#c20e0e; width:100%; margin-top:5px; display:none;">QUITAR RESERVA</button>
+        <button class="btn" onclick="cerrarModalInvitados()" style="background:#777; margin-top:10px; font-size:12px;">Cerrar sin guardar</button>
+    </div>
+</div>
+
+<footer>
+    <p>&copy; 2026 Agencia de Booking - Todos los derechos reservados</p>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>
