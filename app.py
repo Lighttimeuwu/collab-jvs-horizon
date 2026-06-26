@@ -12,7 +12,7 @@ from consultas.usuarios import crear_usuario, validar_login
 from consultas.asientos import consultar_asientos_ocupados, registrar_asientos_ocupados
 from consultas.ventas import listar_historial_ventas, registrar_venta_web, listar_ventas_usuario
 from consultas.proveedores import listar_proveedores, consultar_proveedores_por_evento
-from consultas.riders import guardar_rider, obtener_rider, listar_riders, eliminar_rider
+from consultas.riders import guardar_rider, obtener_rider, listar_riders, eliminar_rider, guardar_genero_rider
 
 
 app = Flask(__name__)
@@ -259,13 +259,34 @@ def guardar_rider_api(artista_id):
             artista_id,
             datos.get("nombre_archivo"),
             datos.get("tipo_archivo"),
-            datos.get("contenido_base64")
+            datos.get("contenido_base64"),
+            datos.get("genero")
         )
         return jsonify({
             "ok": True,
             "mensaje": "Rider guardado correctamente",
             "rider": rider
         }), 201
+    except ValueError as error:
+        return jsonify({"ok": False, "error": str(error)}), 400
+    except Exception as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
+
+
+@app.put("/api/riders/<artista_id>/genero")
+def actualizar_genero_rider_api(artista_id):
+    """
+    Guarda/actualiza solo el genero musical de un artista/evento,
+    sin necesidad de tener ya un archivo de rider subido.
+    """
+    try:
+        datos = request.get_json(silent=True) or {}
+        resultado = guardar_genero_rider(artista_id, datos.get("genero"))
+        return jsonify({
+            "ok": True,
+            "mensaje": "Genero actualizado correctamente",
+            **resultado
+        })
     except ValueError as error:
         return jsonify({"ok": False, "error": str(error)}), 400
     except Exception as error:

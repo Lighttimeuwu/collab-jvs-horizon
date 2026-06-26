@@ -595,3 +595,141 @@ footer {
         gap: 14px;
     }
 }
+
+
+/* ===========================================
+   MÓDULO GÉNERO MUSICAL (panel de Rider)
+   =========================================== */
+ 
+.panel-genero-musical {
+    margin: 22px 0;
+    padding: 20px;
+    border: 1px solid rgba(255, 64, 129, 0.45);
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(49, 10, 23, 0.96), rgba(24, 18, 4, 0.92));
+    box-shadow: 0 10px 24px rgba(105, 10, 168, 0.25);
+    color: white;
+    text-align: left;
+}
+ 
+.panel-genero-musical h3 {
+    margin: 0 0 15px;
+    color: #ff4081;
+    text-transform: uppercase;
+    letter-spacing: 0;
+    font-size: 16px;
+}
+ 
+.genero-chips-grupo {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 4px;
+}
+ 
+.genero-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 18px;
+    border: 2px solid rgba(255, 64, 129, 0.75);
+    border-radius: 25px;
+    background: rgba(0, 0, 0, 0.72);
+    color: white;
+    font-weight: bold;
+    font-size: 13px;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.3s ease;
+}
+ 
+.genero-chip:hover {
+    border-color: #f50057;
+    box-shadow: 0 0 14px rgba(245, 0, 87, 0.45);
+    transform: scale(1.04);
+}
+ 
+.genero-chip input[type="radio"] {
+    /* el input sigue siendo accesible/operativo pero no se muestra,
+       el estilo de selección lo lleva el propio chip */
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+ 
+.genero-chip.seleccionado {
+    background: #ff4081;
+    border-color: #ff4081;
+    box-shadow: 0 0 16px rgba(255, 64, 129, 0.65);
+    transform: scale(1.05);
+}
+ 
+.genero-chip.seleccionado:hover {
+    background: #f50057;
+    border-color: #f50057;
+}
+ 
+#generoOtroCampo {
+    max-height: 0;
+    margin-top: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition: all 0.35s ease;
+}
+ 
+#generoOtroCampo.visible {
+    max-height: 80px;
+    margin-top: 14px;
+    opacity: 1;
+}
+ 
+#generoOtroCampo input[type="text"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 11px 12px;
+    border: 2px solid rgba(255, 64, 129, 0.75);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.72);
+    color: white;
+    font-weight: bold;
+    outline: none;
+}
+ 
+#generoOtroCampo input[type="text"]:focus {
+    border-color: #f50057;
+    box-shadow: 0 0 14px rgba(245, 0, 87, 0.55);
+}
+ 
+#generoOtroCampo input[type="text"]::placeholder {
+    color: rgba(255, 255, 255, 0.55);
+}
+ 
+#generoBadge {
+    display: none;
+    margin-top: 14px;
+    padding: 6px 14px;
+    width: fit-content;
+    border-radius: 999px;
+    background: rgba(255, 64, 129, 0.85);
+    color: white;
+    font-size: 12px;
+    font-weight: 900;
+    box-shadow: 0 4px 12px rgba(105, 10, 168, 0.3);
+    animation: parpadeo 2.4s infinite;
+}
+ 
+@media (max-width: 620px) {
+    .genero-chips-grupo {
+        gap: 8px;
+    }
+ 
+    .genero-chip {
+        flex: 1 1 auto;
+        justify-content: center;
+        padding: 9px 12px;
+        font-size: 12px;
+    }
+}
+ 

@@ -496,10 +496,10 @@ function obtenerCarteleraVigente() {
     });
   });
 
-  let vigente = carteleraUnida.filter(evento => {
-    if (evento.enCartelera === true) return true;
-    return idsBooking.includes(evento.id);
-  });
+  // Solo se muestran en la vista de usuario los eventos que el administrador
+  // haya enviado explícitamente a cartelera (enCartelera: true) luego de
+  // completar el proceso de proveedores y logística.
+  let vigente = carteleraUnida.filter(evento => evento.enCartelera === true);
 
   localStorage.setItem("cartelera_usuario", JSON.stringify(vigente));
   return vigente;
@@ -1139,11 +1139,21 @@ async function cargarEventosAPI() {
         .map(ev => ev.id)
     );
 
+    // Solo mostramos los eventos de la API que el administrador haya enviado
+    // explícitamente a cartelera (enCartelera: true en proveedores_data),
+    // para no saltarse el proceso de proveedores y logística.
+    const proveedoresData = JSON.parse(localStorage.getItem("proveedores_data") || "{}");
+
     contenedor.querySelectorAll(".evento-api").forEach(ev => ev.remove());
 
     eventosAPI.forEach(evento => {
+      // El evento debe tener enCartelera: true en proveedores_data para aparecer
+      const idSqlite = "sqlite_" + evento.apiId;
+      const gestion  = proveedoresData[idSqlite] || proveedoresData[String(evento.apiId)] || {};
+      if (gestion.enCartelera !== true) return;
+
       // Si ya está en cartelera_usuario como sqlite_X, no duplicar
-      if (idsCarteleraPublicada.has("sqlite_" + evento.apiId)) return;
+      if (idsCarteleraPublicada.has(idSqlite)) return;
 
       contenedor.insertAdjacentHTML("beforeend", `
         <div class="evento evento-api" data-event-id="${escaparHTML(evento.id)}">

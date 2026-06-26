@@ -140,7 +140,70 @@
 <div id="modulo-raider" class="modulo">
     <div class="panel-raider">
         <h2 style="color:#c50b0b; border-bottom:2px solid #333;">Gestión de Requerimientos Técnicos</h2>
-        <p>Selecciona un artista y vincula su Rider (.pdf, .doc):</p>
+        <p>Selecciona un artista, elige su género musical y vincula su Rider (.pdf, .doc):</p>
+
+        <!-- ★ PANEL GÉNERO MUSICAL ★ -->
+        <div class="panel-genero">
+            <h3>🎵 Género Musical del Artista / Evento</h3>
+
+            <div class="genero-grid" id="generoGrid">
+                <label class="genero-chip" onclick="seleccionarGenero(this)">
+                    <input type="radio" name="generoMusical" value="Reggaeton"> Reggaeton
+                </label>
+                <label class="genero-chip" onclick="seleccionarGenero(this)">
+                    <input type="radio" name="generoMusical" value="Salsa"> Salsa
+                </label>
+                <label class="genero-chip" onclick="seleccionarGenero(this)">
+                    <input type="radio" name="generoMusical" value="Bachata"> Bachata
+                </label>
+                <label class="genero-chip" onclick="seleccionarGenero(this)">
+                    <input type="radio" name="generoMusical" value="Electrónica / EDM"> Electrónica / EDM
+                </label>
+                <label class="genero-chip" onclick="seleccionarGenero(this)">
+                    <input type="radio" name="generoMusical" value="Techno"> Techno
+                </label>
+                <label class="genero-chip" onclick="seleccionarGenero(this)">
+                    <input type="radio" name="generoMusical" value="Vallenato"> Vallenato
+                </label>
+                <label class="genero-chip" onclick="seleccionarGenero(this)">
+                    <input type="radio" name="generoMusical" value="Pop Latino"> Pop Latino
+                </label>
+                <label class="genero-chip" onclick="seleccionarGenero(this)">
+                    <input type="radio" name="generoMusical" value="Rock"> Rock
+                </label>
+                <label class="genero-chip" onclick="seleccionarGenero(this)">
+                    <input type="radio" name="generoMusical" value="Urbano / Trap"> Urbano / Trap
+                </label>
+                <label class="genero-chip" onclick="seleccionarGenero(this)">
+                    <input type="radio" name="generoMusical" value="Cumbia"> Cumbia
+                </label>
+                <label class="genero-chip" onclick="seleccionarGenero(this)">
+                    <input type="radio" name="generoMusical" value="RAVE / Hard Techno"> RAVE / Hard Techno
+                </label>
+                <label class="genero-chip" onclick="seleccionarGenero(this)">
+                    <input type="radio" name="generoMusical" value="otro"> ✏️ Otro
+                </label>
+            </div>
+
+            <!-- Campo "Otro" género personalizado -->
+            <div class="genero-otro-campo" id="generoOtroCampo">
+                <span>🎶</span>
+                <input
+                    type="text"
+                    id="generoOtroTexto"
+                    placeholder="Escribe el género musical..."
+                    oninput="actualizarBadgeGenero()"
+                    maxlength="60"
+                >
+            </div>
+
+            <!-- Badge preview -->
+            <div id="generoBadge" style="display:none;">
+                <span class="genero-badge-preview" id="generoBadgeTexto">🎵 —</span>
+            </div>
+        </div>
+        <!-- ★ FIN PANEL GÉNERO ★ -->
+
         <div class="form-publicar-evento">
             <h3>Publicar nuevo evento</h3>
             <div class="form-grid-evento">
@@ -194,6 +257,7 @@
             <thead>
                 <tr>
                     <th>Artista</th>
+                    <th>Género Musical</th>
                     <th>Estado Documento</th>
                     <th>Archivo Vinculado</th>
                     <th>Abrir</th>
