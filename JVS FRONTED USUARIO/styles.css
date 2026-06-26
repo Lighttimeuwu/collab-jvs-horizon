@@ -1073,6 +1073,18 @@ body.modal-open {
   box-shadow: 0 0 16px rgba(255, 0, 51, 0.45);
 }
 
+.pse-form input.pse-input-bloqueado {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.65);
+  cursor: not-allowed;
+}
+
+.pse-form input.pse-input-bloqueado:focus {
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: none;
+}
+
 .pse-method-card {
   display: flex;
   align-items: center;

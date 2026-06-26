@@ -1,4 +1,3 @@
-
 import sys
 import os
 
@@ -43,23 +42,30 @@ def validar_login(correo, contrasena):
     conexion = conectar()
     cursor = conexion.cursor()
     try:
+        # Traemos también Cedula y Telefono para autocompletar la pasarela PSE
         cursor.execute("""
-            SELECT Usuario_Id, Nombre, Apellido, Estado, Rol_Id, Correo
-            FROM Usuario 
-            LEFT JOIN Administrador_Rol ON Usuario.Usuario_Id = Administrador_Rol.Administrador_Id
-            WHERE Correo = ? AND Contrasena = ?
+            SELECT U.Usuario_Id, U.Nombre, U.Apellido, U.Estado, AR.Rol_Id,
+                   U.Correo, U.Cedula,
+                   COALESCE(T.Telefono, U.Telefono) AS Telefono
+            FROM Usuario U
+            LEFT JOIN Administrador_Rol AR ON U.Usuario_Id = AR.Administrador_Id
+            LEFT JOIN Telefono T ON U.Usuario_Id = T.Usuario_Id
+            WHERE U.Correo = ? AND U.Contrasena = ?
+            LIMIT 1
         """, (correo, contrasena))
 
         usuario = cursor.fetchone()
 
         if usuario:
             return {
-                "id": usuario[0],
-                "nombre": usuario[1],
+                "id":       usuario[0],
+                "nombre":   usuario[1],
                 "apellido": usuario[2],
-                "estado": usuario[3],
+                "estado":   usuario[3],
                 "es_admin": bool(usuario[4]),
-                "correo": usuario[5]
+                "correo":   usuario[5],
+                "cedula":   str(usuario[6]) if usuario[6] else "",
+                "telefono": str(usuario[7]) if usuario[7] else ""
             }
         return None
     finally:

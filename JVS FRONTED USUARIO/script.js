@@ -252,7 +252,9 @@ function obtenerDetalleEvento(evento) {
 
   const imgFinal = evento.imagen || evento.img || "";
   const horaFinal  = agendaBase.hora  || evento.hora  || detalle.hora  || "Hora no registrada";
-  const lugarFinal = agendaBase.lugar || evento.lugar || fechaInfo.lugar || detalle.lugar || "Ubicacion no registrada";
+  // Lugar: extraer de la primera fecha disponible ("20 Marzo 2026 - Bogotá" → "Bogotá")
+  const lugarDePrimeraFecha = separarFechaLugar(fechaBase).lugar;
+  const lugarFinal = lugarDePrimeraFecha || agendaBase.lugar || evento.lugar || detalle.lugar || "Ubicacion no registrada";
   const descripcionFinal = evento.descripcion || detalle.descripcionGeneral
     || "Este evento publicado en la cartelera de Focus Producciones combina una propuesta artistica destacada con produccion profesional, proveedores asignados y una experiencia preparada para el publico.";
 
@@ -286,6 +288,12 @@ function renderOpcionesFechaCompra(fechas = []) {
   contenedor.querySelectorAll('input[name="fechaCompraEvento"]').forEach(input => {
     input.addEventListener("change", function () {
       fechaSeleccionadaModal = this.value;
+      // Actualizar el lugar en el modal principal según la fecha seleccionada
+      const lugarDeFecha = separarFechaLugar(this.value).lugar;
+      if (lugarDeFecha) {
+        const elLugar = document.getElementById("modalEventoLugar");
+        if (elLugar) elLugar.innerText = lugarDeFecha;
+      }
     });
   });
 }
@@ -757,6 +765,38 @@ function renderPasarelaPSE() {
   `;
 }
 
+function autocompletarDatosCompradorPSE() {
+  const usuarioLogueado = JSON.parse(localStorage.getItem("usuarioLogueado") || "{}");
+
+  const campoNombre    = document.getElementById("pseNombre");
+  const campoDocumento = document.getElementById("pseDocumento");
+  const campoCorreo    = document.getElementById("pseCorreo");
+  const campoTelefono  = document.getElementById("pseTelefono");
+
+  // Por si se reabre la pasarela (ej. "Volver a asientos" y luego pagar otra vez):
+  // se quitan los bloqueos antes de volver a aplicarlos, para no dejar campos
+  // viejos bloqueados si el usuario cambio de sesion.
+  [campoNombre, campoDocumento, campoCorreo, campoTelefono].forEach(campo => {
+    if (campo) { campo.readOnly = false; campo.classList.remove("pse-input-bloqueado"); }
+  });
+
+  if (!usuarioLogueado || !usuarioLogueado.correo) return;
+
+  const nombreCompleto = ((usuarioLogueado.nombre || "") + " " + (usuarioLogueado.apellido || "")).trim();
+
+  const bloquearConValor = (campo, valor) => {
+    if (!campo || !valor) return;
+    campo.value = valor;
+    campo.readOnly = true;
+    campo.classList.add("pse-input-bloqueado");
+  };
+
+  bloquearConValor(campoNombre, nombreCompleto);
+  bloquearConValor(campoDocumento, usuarioLogueado.cedula);
+  bloquearConValor(campoCorreo, usuarioLogueado.correo);
+  bloquearConValor(campoTelefono, usuarioLogueado.telefono);
+}
+
 function abrirPasarelaPSE() {
   if (seleccionados.length === 0) { alert("Seleccione asientos"); return; }
 
@@ -769,6 +809,7 @@ function abrirPasarelaPSE() {
 
   renderPasarelaPSE();
   mostrar("pse");
+  autocompletarDatosCompradorPSE();
 }
 
 function obtenerDatosCompradorPSE() {
