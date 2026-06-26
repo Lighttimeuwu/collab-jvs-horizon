@@ -21,7 +21,7 @@ app = Flask(__name__)
 @app.after_request
 def permitir_frontend_local(respuesta):
     respuesta.headers["Access-Control-Allow-Origin"] = "*"
-    respuesta.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, OPTIONS"
+    respuesta.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
     respuesta.headers["Access-Control-Allow-Headers"] = "Content-Type"
     return respuesta
 
@@ -178,14 +178,16 @@ def actualizar_evento_api(evento_id):
         return jsonify({"ok": False, "error": str(error)}), 500
 
 
-@app.get("/api/asientos-ocupados")
+@app.route("/api/asientos-ocupados", methods=["GET", "OPTIONS"])
 def obtener_asientos_ocupados_api():
-    """Consulta asientos ocupados desde SQLite por evento y fecha."""
+    """Consulta asientos ocupados desde SQLite por evento y fecha (query params)."""
+    if request.method == "OPTIONS":
+        return jsonify({"ok": True})
     try:
         datos = {
-            "evento": request.args.get("evento"),
-            "fecha":  request.args.get("fecha"),
-            "evento_id": request.args.get("evento_id"),
+            "evento":     request.args.get("evento"),
+            "fecha":      request.args.get("fecha"),
+            "evento_id":  request.args.get("evento_id"),
             "funcion_id": request.args.get("funcion_id")
         }
         resultado = consultar_asientos_ocupados(datos)
@@ -194,9 +196,11 @@ def obtener_asientos_ocupados_api():
         return jsonify({"ok": False, "error": str(error)}), 500
 
 
-@app.post("/api/asientos-ocupados")
+@app.route("/api/asientos-ocupados", methods=["POST", "OPTIONS"])
 def registrar_asientos_ocupados_api():
     """Registra en SQLite los asientos comprados al confirmar una compra."""
+    if request.method == "OPTIONS":
+        return jsonify({"ok": True})
     try:
         datos = request.get_json(silent=True) or {}
         resultado = registrar_asientos_ocupados(datos)

@@ -241,7 +241,6 @@ function obtenerDetalleEvento(evento) {
   const agendasBase = obtenerJSON("eventos_base_agenda");
   const agendaBase = agendasBase.find(item => item.id === evento.id || normalizarNombreEvento(item.nombre || "") === clave) || {};
 
-  // Fechas: prioridad agendaBase > evento.fechas > detalle.agenda
   const fechasDisponibles = Array.isArray(agendaBase.fechas) && agendaBase.fechas.length
     ? agendaBase.fechas
     : (Array.isArray(evento.fechas) && evento.fechas.length
@@ -251,14 +250,9 @@ function obtenerDetalleEvento(evento) {
   const fechaBase = fechasDisponibles[0] || evento.fecha || "";
   const fechaInfo = separarFechaLugar(fechaBase);
 
-  // Imagen: acepta tanto 'imagen' (Booking) como 'img' (cartelera)
   const imgFinal = evento.imagen || evento.img || "";
-
-  // Hora y lugar: si el evento tiene sus propios datos, usarlos directamente
   const horaFinal  = agendaBase.hora  || evento.hora  || detalle.hora  || "Hora no registrada";
   const lugarFinal = agendaBase.lugar || evento.lugar || fechaInfo.lugar || detalle.lugar || "Ubicacion no registrada";
-
-  // Descripcion: evento publicado > detalle base > texto generico
   const descripcionFinal = evento.descripcion || detalle.descripcionGeneral
     || "Este evento publicado en la cartelera de Focus Producciones combina una propuesta artistica destacada con produccion profesional, proveedores asignados y una experiencia preparada para el publico.";
 
@@ -471,12 +465,9 @@ function unirCarteleraSinDuplicados(cartelera, enviados) {
 function obtenerCarteleraVigente() {
   let cartelera         = obtenerJSON("cartelera_usuario");
   let eventosBooking    = obtenerJSON("eventos_publicados");
-  let idsBooking        = eventosBooking.map(evento => evento.id);
   let enviadosProveedores = obtenerEventosEnviadosDesdeProveedores();
   let carteleraUnida    = unirCarteleraSinDuplicados(cartelera, enviadosProveedores);
 
-  // Enriquecer con datos de eventos_publicados (imagen, hora, lugar, fechas)
-  // para que los eventos nuevos del Rider aparezcan completos en el usuario.
   const bookingPorId = {};
   eventosBooking.forEach(ev => { bookingPorId[ev.id] = ev; });
 
@@ -496,11 +487,7 @@ function obtenerCarteleraVigente() {
     });
   });
 
-  // Solo se muestran en la vista de usuario los eventos que el administrador
-  // haya enviado explícitamente a cartelera (enCartelera: true) luego de
-  // completar el proceso de proveedores y logística.
   let vigente = carteleraUnida.filter(evento => evento.enCartelera === true);
-
   localStorage.setItem("cartelera_usuario", JSON.stringify(vigente));
   return vigente;
 }
@@ -530,10 +517,8 @@ function renderCarteleraPublicada() {
 }
 
 function verEventoPublicado(id) {
-  // Primero buscar en cartelera/localStorage
   let evento = buscarEventoPublicado(id);
 
-  // Si es un evento sqlite_X, enriquecer con datos frescos de la API
   if (String(id).startsWith("sqlite_")) {
     const apiId      = String(id).replace("sqlite_", "");
     const eventoAPI  = eventosAPI.find(ev => String(ev.apiId) === String(apiId));
@@ -862,7 +847,7 @@ async function confirmarPagoPSE() {
   compras.push(facturaActual);
   localStorage.setItem("compras_locales", JSON.stringify(compras));
 
-  // Guardar venta en la BD
+  // ── FIX: guardar venta en BD con el correo del usuario logueado ──
   const usuarioLogueado = JSON.parse(localStorage.getItem("usuarioLogueado") || "{}");
   try {
     await fetch("http://127.0.0.1:5000/api/ventas/web", {
@@ -870,7 +855,7 @@ async function confirmarPagoPSE() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         usuario_correo: usuarioLogueado.correo    || datosComprador.correo,
-        usuario_nombre: (usuarioLogueado.nombre   || datosComprador.nombre) + " " + (usuarioLogueado.apellido || ""),
+        usuario_nombre: ((usuarioLogueado.nombre  || datosComprador.nombre) + " " + (usuarioLogueado.apellido || "")).trim(),
         evento:         facturaActual.evento,
         fecha_evento:   facturaActual.fechaEvento,
         lugar:          facturaActual.lugar,
@@ -1100,8 +1085,6 @@ function normalizarEventoAPI(evento) {
     return funcion.lugar ? `${fecha} - ${funcion.lugar}` : fecha;
   });
   const primeraFuncion = funciones[0] || {};
-
-  // Usar la imagen real guardada en SQLite; si no hay, imagen genérica
   const imgReal = evento.imagen || evento.img || "imagenes/doom.jpg.jpg";
 
   return {
@@ -1132,27 +1115,19 @@ async function cargarEventosAPI() {
 
     eventosAPI = datos.eventos.map(normalizarEventoAPI);
 
-    // IDs que ya vienen de cartelera_usuario como sqlite_X (publicados desde Booking)
-    // para no mostrarlos dos veces
     const idsCarteleraPublicada = new Set(
       (JSON.parse(localStorage.getItem("cartelera_usuario") || "[]"))
         .map(ev => ev.id)
     );
 
-    // Solo mostramos los eventos de la API que el administrador haya enviado
-    // explícitamente a cartelera (enCartelera: true en proveedores_data),
-    // para no saltarse el proceso de proveedores y logística.
     const proveedoresData = JSON.parse(localStorage.getItem("proveedores_data") || "{}");
 
     contenedor.querySelectorAll(".evento-api").forEach(ev => ev.remove());
 
     eventosAPI.forEach(evento => {
-      // El evento debe tener enCartelera: true en proveedores_data para aparecer
       const idSqlite = "sqlite_" + evento.apiId;
       const gestion  = proveedoresData[idSqlite] || proveedoresData[String(evento.apiId)] || {};
       if (gestion.enCartelera !== true) return;
-
-      // Si ya está en cartelera_usuario como sqlite_X, no duplicar
       if (idsCarteleraPublicada.has(idSqlite)) return;
 
       contenedor.insertAdjacentHTML("beforeend", `
@@ -1166,11 +1141,8 @@ async function cargarEventosAPI() {
       `);
     });
 
-    // Actualizar también las tarjetas de cartelera publicada con datos frescos de la API
-    // para que imagen, hora y lugar estén correctos
     eventosAPI.forEach(eventoAPI => {
-      const idSqlite = "sqlite_" + eventoAPI.apiId;
-      const tarjeta  = contenedor.querySelector(`.evento-publicado[data-sqlite-id="${eventoAPI.apiId}"]`);
+      const tarjeta = contenedor.querySelector(`.evento-publicado[data-sqlite-id="${eventoAPI.apiId}"]`);
       if (tarjeta) {
         const img = tarjeta.querySelector("img");
         if (img && eventoAPI.img && eventoAPI.img !== "imagenes/doom.jpg.jpg") {
