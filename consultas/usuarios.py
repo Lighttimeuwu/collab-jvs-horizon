@@ -42,7 +42,6 @@ def validar_login(correo, contrasena):
     conexion = conectar()
     cursor = conexion.cursor()
     try:
-        # Traemos también Cedula y Telefono para autocompletar la pasarela PSE
         cursor.execute("""
             SELECT U.Usuario_Id, U.Nombre, U.Apellido, U.Estado, AR.Rol_Id,
                    U.Correo, U.Cedula,
@@ -51,18 +50,21 @@ def validar_login(correo, contrasena):
             LEFT JOIN Administrador_Rol AR ON U.Usuario_Id = AR.Administrador_Id
             LEFT JOIN Telefono T ON U.Usuario_Id = T.Usuario_Id
             WHERE U.Correo = ? AND U.Contrasena = ?
+            ORDER BY CASE WHEN AR.Rol_Id IS NULL THEN 1 ELSE 0 END, AR.Rol_Id ASC
             LIMIT 1
         """, (correo, contrasena))
 
         usuario = cursor.fetchone()
 
         if usuario:
+            rol_id = usuario[4]
             return {
                 "id":       usuario[0],
                 "nombre":   usuario[1],
                 "apellido": usuario[2],
                 "estado":   usuario[3],
-                "es_admin": bool(usuario[4]),
+                "rol_id":   rol_id,
+                "es_admin": bool(rol_id),
                 "correo":   usuario[5],
                 "cedula":   str(usuario[6]) if usuario[6] else "",
                 "telefono": str(usuario[7]) if usuario[7] else ""
@@ -87,53 +89,59 @@ def obtener_o_crear_pais(cursor, nombre_pais):
 
 
 def crear_usuario(datos):
-    nombre = (datos.get("nombre") or "").strip()
-    apellido = (datos.get("apellido") or "").strip()
-    correo = (datos.get("correo") or "").strip()
-    telefono = (datos.get("telefono") or "").strip()
-    pais = (datos.get("pais") or "").strip()
-    ciudad = (datos.get("ciudad") or "").strip()
+    nombre     = (datos.get("nombre")     or "").strip()
+    apellido   = (datos.get("apellido")   or "").strip()
+    correo     = (datos.get("correo")     or "").strip()
+    cedula     = (datos.get("cedula")     or "").strip()
+    telefono   = (datos.get("telefono")   or "").strip()
+    pais       = (datos.get("pais")       or "").strip()
+    ciudad     = (datos.get("ciudad")     or "").strip()
     contrasena = (datos.get("contrasena") or "").strip()
 
-    if not all([nombre, apellido, correo, telefono, pais, ciudad, contrasena]):
+    if not all([nombre, apellido, correo, cedula, telefono, pais, ciudad, contrasena]):
         raise ValueError("Todos los campos del registro son obligatorios")
 
-    digitos_telefono = "".join(caracter for caracter in telefono if caracter.isdigit())
-    cedula_temporal = int(digitos_telefono[-10:] or "0")
+    digitos_cedula = "".join(c for c in cedula if c.isdigit())
+    if not digitos_cedula:
+        raise ValueError("El número de documento no es válido")
+    cedula_int = int(digitos_cedula[:15])
 
     conexion = conectar()
     cursor = conexion.cursor()
 
     try:
         asegurar_columnas_registro(cursor)
+
+        cursor.execute("SELECT Usuario_Id FROM Usuario WHERE LOWER(Correo) = LOWER(?)", (correo,))
+        if cursor.fetchone():
+            raise ValueError("El correo ya está registrado")
+
+        cursor.execute("SELECT Usuario_Id FROM Usuario WHERE Telefono = ?", (telefono,))
+        if cursor.fetchone():
+            raise ValueError("El número de teléfono ya está registrado")
+
+        cursor.execute("SELECT Usuario_Id FROM Usuario WHERE Cedula = ?", (cedula_int,))
+        if cursor.fetchone():
+            raise ValueError("El número de documento ya está registrado")
+
         pais_id = obtener_o_crear_pais(cursor, pais)
 
         cursor.execute("""
             INSERT INTO Usuario
                 (Cedula, Nombre, Apellido, Estado, Contrasena, Pais_Id, Correo, Telefono, Ciudad)
-            VALUES
-                (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            cedula_temporal,
-            nombre,
-            apellido,
-            "Activo",
-            contrasena,
-            pais_id,
-            correo,
-            telefono,
-            ciudad
-        ))
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (cedula_int, nombre, apellido, "Activo", contrasena, pais_id, correo, telefono, ciudad))
 
         conexion.commit()
         return {
             "usuario_id": cursor.lastrowid,
-            "nombre": nombre,
+            "nombre":   nombre,
             "apellido": apellido,
-            "correo": correo,
+            "correo":   correo,
+            "cedula":   cedula_int,
             "telefono": telefono,
-            "pais": pais,
-            "ciudad": ciudad
+            "pais":     pais,
+            "ciudad":   ciudad
         }
     except Exception:
         conexion.rollback()

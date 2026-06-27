@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>JVS Horizon - Acceso</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+<!-- LOADER -->
+<div id="loader">Cargando...</div>
+
+<!-- LOGIN -->
+<div id="login" class="modulo active">
+
+  <button class="nav-arrow back-admin-login" onclick="volverAdministrador()" title="Volver al administrador" aria-label="Volver al administrador">⬅️</button>
+
+  <h1>JVS HORIZON</h1>
+
+  <div class="cuadro">
+    <input id="email" type="email" placeholder="Correo">
+    <input id="password" type="password" placeholder="Contraseña">
+    <button onclick="login()">Entrar</button>
+    <div id="error"></div>
+  </div>
+
+  <div class="links">
+    <a href="#" onclick="mostrar('registro')">Registrate aquí</a> |
+    <a href="#" onclick="mostrar('recuperar')">Olvidaste contraseña</a>
+  </div>
+
+</div>
+
+<!-- REGISTRO -->
+<div id="registro" class="modulo">
+
+  <h2>Registro</h2>
+  <input id="registroNombre" placeholder="Nombre">
+  <input id="registroApellido" placeholder="Apellidos">
+  <input id="registroCorreo" type="email" placeholder="Correo">
+
+  <input id="pass" type="password" placeholder="Contraseña">
+  <button onclick="togglePass()">Mostrar / Ocultar</button>
+
+  <input id="registroTelefono" placeholder="Teléfono">
+
+  <select id="pais" onchange="ciudades()">
+    <option>Colombia</option>
+    <option>México</option>
+    <option>España</option>
+    <option>Argentina</option>
+    <option>Chile</option>
+  </select>
+
+  <select id="ciudad"></select>
+
+  <p id="registroMensaje" class="registro-mensaje"></p>
+  <button onclick="registrarUsuario()">Registrarme</button>
+  <button onclick="mostrar('login')">Volver</button>
+
+</div>
+
+<!-- RECUPERAR CONTRASEÑA -->
+<div id="recuperar" class="modulo">
+
+  <h2>Recuperar contraseña</h2>
+
+  <input placeholder="Correo">
+  <button onclick="alert('Correo enviado correctamente')">Enviar código</button>
+  <button onclick="mostrar('login')">Volver</button>
+
+</div>
+
+<script src="script.js"></script>
+
+</body>
+</html>
