@@ -364,8 +364,7 @@ function cancel() {
 }
 
 function volverAdministrador() {
-  localStorage.setItem("admin_entrar_menu", "true");
-  window.location.href = "../JVS FRONTED ADMINISTRADOR/index.html";
+  window.location.href = "/web/admin/";
 }
 
 window.addEventListener("DOMContentLoaded", renderEventList);

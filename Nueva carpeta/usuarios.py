@@ -43,14 +43,14 @@ def validar_login(correo, contrasena):
     cursor = conexion.cursor()
     try:
         cursor.execute("""
-            SELECT U.Usuario_Id, U.Nombre, U.Apellido, U.Estado, UR.Rol_Id,
+            SELECT U.Usuario_Id, U.Nombre, U.Apellido, U.Estado, AR.Rol_Id,
                    U.Correo, U.Cedula,
                    COALESCE(T.Telefono, U.Telefono) AS Telefono
             FROM Usuario U
-            LEFT JOIN Usuario_Rol UR ON U.Usuario_Id = UR.Usuario_Id
+            LEFT JOIN Administrador_Rol AR ON U.Usuario_Id = AR.Administrador_Id
             LEFT JOIN Telefono T ON U.Usuario_Id = T.Usuario_Id
             WHERE U.Correo = ? AND U.Contrasena = ?
-            ORDER BY CASE WHEN UR.Rol_Id IS NULL THEN 1 ELSE 0 END, UR.Rol_Id ASC
+            ORDER BY CASE WHEN AR.Rol_Id IS NULL THEN 1 ELSE 0 END, AR.Rol_Id ASC
             LIMIT 1
         """, (correo, contrasena))
 
@@ -64,7 +64,7 @@ def validar_login(correo, contrasena):
                 "apellido": usuario[2],
                 "estado":   usuario[3],
                 "rol_id":   rol_id,
-                "es_admin": bool(rol_id and rol_id in (1, 2, 3)),
+                "es_admin": bool(rol_id),
                 "correo":   usuario[5],
                 "cedula":   str(usuario[6]) if usuario[6] else "",
                 "telefono": str(usuario[7]) if usuario[7] else ""
@@ -72,50 +72,6 @@ def validar_login(correo, contrasena):
         return None
     finally:
         conexion.close()
-
-
-ROL_CLIENTE_ID = 4
-
-
-def asegurar_tabla_usuario_rol(cursor):
-    """Crea Usuario_Rol si no existe (misma forma que usa migrar_roles.py)."""
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS Usuario_Rol (
-            Usuario_Id INTEGER NOT NULL,
-            Rol_Id     INTEGER NOT NULL,
-            PRIMARY KEY (Usuario_Id, Rol_Id),
-            FOREIGN KEY (Usuario_Id) REFERENCES Usuario(Usuario_Id),
-            FOREIGN KEY (Rol_Id)     REFERENCES Rol(Rol_Id)
-        )
-    """)
-
-
-def asegurar_columna_rol_en_usuario(cursor):
-    """
-    Agrega Usuario.Rol_Id si no existe todavia. Esta columna es una CACHE
-    de solo lectura visual (la fuente de verdad sigue siendo Usuario_Rol);
-    se actualiza con sincronizar_rol_id_usuario() cada vez que cambian los
-    roles de un usuario especifico.
-    """
-    columnas = {fila[1] for fila in cursor.execute("PRAGMA table_info(Usuario)").fetchall()}
-    if "Rol_Id" not in columnas:
-        cursor.execute("ALTER TABLE Usuario ADD COLUMN Rol_Id INTEGER REFERENCES Rol(Rol_Id)")
-
-
-def sincronizar_rol_id_usuario(cursor, usuario_id):
-    """
-    Recalcula Usuario.Rol_Id para UN usuario puntual, tomando el rol mas
-    relevante (menor Rol_Id) de entre todos los que tenga en Usuario_Rol.
-    Llamar siempre despues de insertar/eliminar filas en Usuario_Rol para
-    ese usuario.
-    """
-    cursor.execute("""
-        UPDATE Usuario
-        SET Rol_Id = (
-            SELECT MIN(UR.Rol_Id) FROM Usuario_Rol UR WHERE UR.Usuario_Id = ?
-        )
-        WHERE Usuario_Id = ?
-    """, (usuario_id, usuario_id))
 
 
 def obtener_o_crear_pais(cursor, nombre_pais):
@@ -155,8 +111,6 @@ def crear_usuario(datos):
 
     try:
         asegurar_columnas_registro(cursor)
-        asegurar_tabla_usuario_rol(cursor)
-        asegurar_columna_rol_en_usuario(cursor)
 
         cursor.execute("SELECT Usuario_Id FROM Usuario WHERE LOWER(Correo) = LOWER(?)", (correo,))
         if cursor.fetchone():
@@ -178,17 +132,9 @@ def crear_usuario(datos):
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (cedula_int, nombre, apellido, "Activo", contrasena, pais_id, correo, telefono, ciudad))
 
-        usuario_id = cursor.lastrowid
-
-        cursor.execute(
-            "INSERT OR IGNORE INTO Usuario_Rol (Usuario_Id, Rol_Id) VALUES (?, ?)",
-            (usuario_id, ROL_CLIENTE_ID)
-        )
-        sincronizar_rol_id_usuario(cursor, usuario_id)
-
         conexion.commit()
         return {
-            "usuario_id": usuario_id,
+            "usuario_id": cursor.lastrowid,
             "nombre":   nombre,
             "apellido": apellido,
             "correo":   correo,

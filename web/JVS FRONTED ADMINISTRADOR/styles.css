@@ -160,32 +160,6 @@ input:focus {
     box-shadow: 0 0 10px #ff0033;
 }
 
-/* ===== LOGIN ===== */
-#login {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: url('imagen/FONDO.avif') no-repeat center center / cover;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-}
-
-.login-box {
-    background: rgba(0, 0, 0, 0.75);
-    backdrop-filter: blur(10px);
-    border: 5px solid #7a0018;
-    box-shadow: 0 0 40px #7a0018;
-    padding: 30px;
-    border-radius: 8px;
-    text-align: center;
-    color: white;
-    width: 320px;
-}
-
 /* ===== VENTANAS MODALES (shared) ===== */
 .modal {
     display: none;

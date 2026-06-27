@@ -28,28 +28,12 @@ const productos = [
 let productoEditando = null;
 
 function mostrarMenuAdministrador() {
-    document.getElementById("login").style.display = "none";
     document.getElementById("bienvenida").innerText = "Hola Admin, bienvenido";
 }
 
 window.addEventListener("DOMContentLoaded", function() {
-    if (localStorage.getItem("admin_entrar_menu") === "true") {
-        localStorage.removeItem("admin_entrar_menu");
-        mostrarMenuAdministrador();
-    }
+    mostrarMenuAdministrador();
 });
-
-// ===== LOGIN =====
-function login() {
-    const usuario   = document.getElementById("user").value;
-    const contraseña = document.getElementById("pass").value;
-
-    if (usuario === "admin" && contraseña === "1234") {
-        mostrarMenuAdministrador();
-    } else {
-        alert("Datos incorrectos");
-    }
-}
 
 // ===== FOTO DE PERFIL =====
 function showOptions() {
@@ -63,7 +47,7 @@ function changePhoto(src) {
 
 // ===== NAVEGACION =====
 function abrirVistaUsuario() {
-    window.location.href = "../JVS FRONTED USUARIO/index.html";
+    window.location.href = "/web/app/";
 }
 
 // ===== MODAL COORDINADOR =====
@@ -319,5 +303,5 @@ function guardarProducto(){
 }
 
 function verProveedores() {
-    window.location.href = "../JVS FRONTED PROVEEDORES/proveedores.html";
+    window.location.href = "/web/proveedores/";
 }

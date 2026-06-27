@@ -23,10 +23,12 @@ app.secret_key = os.environ.get("FLASK_SECRET", "jvs-horizon-secret-2025")
 ROLES_ADMIN = {1, 2, 3}
 
 # ── Ajusta estas rutas si tus carpetas tienen otro nombre ──────────────────
-WEB_DIR   = os.path.join(BASE_DIR, "web")
-LOGIN_DIR = os.path.join(WEB_DIR, "login")
-APP_DIR   = os.path.join(WEB_DIR, "app")
-ADMIN_DIR = os.path.join(WEB_DIR, "JVS FRONTED ADMINISTRADOR")
+WEB_DIR     = os.path.join(BASE_DIR, "web")
+LOGIN_DIR   = os.path.join(WEB_DIR, "login")
+APP_DIR     = os.path.join(WEB_DIR, "app")
+ADMIN_DIR   = os.path.join(WEB_DIR, "JVS FRONTED ADMINISTRADOR")
+BOOKING_DIR = os.path.join(WEB_DIR, "JVS_FRONTED_BOOKING")
+PROVEEDORES_DIR = os.path.join(WEB_DIR, "JVS FRONTED PROVEEDORES")
 
 
 # ─── Helpers de sesión ───────────────────────────────────────────────────────
@@ -77,6 +79,21 @@ def pagina_admin():
         return redirect("/web/login/")
     return send_from_directory(ADMIN_DIR, "index.html")
 
+@app.get("/web/booking/")
+@app.get("/web/booking/index.html")
+def pagina_booking():
+    if not es_admin():
+        return redirect("/web/login/")
+    return send_from_directory(BOOKING_DIR, "index.html")
+
+@app.get("/web/proveedores/")
+@app.get("/web/proveedores/index.html")
+@app.get("/web/proveedores/proveedores.html")
+def pagina_proveedores():
+    if not es_admin():
+        return redirect("/web/login/")
+    return send_from_directory(PROVEEDORES_DIR, "proveedores.html")
+
 @app.get("/web/login/<path:filename>")
 def static_login(filename):
     return send_from_directory(LOGIN_DIR, filename)
@@ -92,6 +109,18 @@ def static_admin(filename):
     if not es_admin():
         return redirect("/web/login/")
     return send_from_directory(ADMIN_DIR, filename)
+
+@app.get("/web/booking/<path:filename>")
+def static_booking(filename):
+    if not es_admin():
+        return redirect("/web/login/")
+    return send_from_directory(BOOKING_DIR, filename)
+
+@app.get("/web/proveedores/<path:filename>")
+def static_proveedores(filename):
+    if not es_admin():
+        return redirect("/web/login/")
+    return send_from_directory(PROVEEDORES_DIR, filename)
 
 
 def convertir_evento_a_json(evento):
