@@ -1,6 +1,19 @@
 const API_USUARIOS_URL = "http://127.0.0.1:5000/api/usuarios";
 
 /* ========================
+   GUARDIA: bloquear retroceso si hay sesión activa
+   ======================== */
+(function bloquearRetrocesoConSesion() {
+  const usuario = JSON.parse(localStorage.getItem("usuarioLogueado") || "null");
+  if (usuario) {
+    history.pushState(null, "", location.href);
+    window.addEventListener("popstate", function () {
+      history.pushState(null, "", location.href);
+    });
+  }
+})();
+
+/* ========================
    NAVEGACIÓN ENTRE MÓDULOS
    ======================== */
 
@@ -9,27 +22,20 @@ function mostrar(id) {
   document.getElementById(id).classList.add("active");
 }
 
-function volverAdministrador() {
-  localStorage.setItem("admin_entrar_menu", "true");
-  window.location.href = "../JVS FRONTED ADMINISTRADOR/index.html";
-}
-
 /* ========================
    LOGIN
    ======================== */
 
-// Roles que dan acceso al panel de Administrador (ver tabla Rol):
-// 1 = Administrador, 2 = Coordinador de eventos, 3 = Vendedor.
-const ROLES_CON_ACCESO_ADMIN = [1, 2, 3];
+const ROLES_ADMIN = [1, 2, 3];
 
 async function login(evento) {
   if (evento) evento.preventDefault();
 
-  let correoInput = document.getElementById("email").value;
-  let passInput   = document.getElementById("password").value;
-  let error       = document.getElementById("error");
+  const correoInput = document.getElementById("email").value;
+  const passInput   = document.getElementById("password").value;
+  const error       = document.getElementById("error");
 
-  if (correoInput === "" || passInput === "") {
+  if (!correoInput || !passInput) {
     error.innerText = "Digita tu correo y contraseña";
     error.style.display = "block";
     return;
@@ -42,6 +48,7 @@ async function login(evento) {
   try {
     const respuesta = await fetch("http://127.0.0.1:5000/api/login", {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ correo: correoInput, contrasena: passInput })
     });
@@ -53,16 +60,12 @@ async function login(evento) {
       localStorage.setItem("usuarioLogueado", JSON.stringify(datos.usuario));
 
       const rolId = datos.usuario && datos.usuario.rol_id;
-      if (ROLES_CON_ACCESO_ADMIN.includes(rolId)) {
-        // El usuario tiene rol de Administrador/Coordinador/Vendedor:
-        // entra directo al panel de Administrador con sesion persistente.
+      if (ROLES_ADMIN.includes(rolId)) {
         localStorage.setItem("admin_sesion_activa", JSON.stringify(datos.usuario));
-        window.location.href = "../JVS FRONTED ADMINISTRADOR/index.html";
+        window.location.href = "/web/admin/";
         return;
       }
-
-      // Usuario normal: redirigir al módulo principal
-      window.location.href = "../app/index.html";
+      window.location.href = "/web/app/";
     } else {
       error.innerText = datos.error || "Correo o contraseña incorrectos";
       error.style.display = "block";
@@ -81,17 +84,25 @@ async function login(evento) {
 async function registrarUsuario() {
   const mensaje = document.getElementById("registroMensaje");
   const datos = {
-    nombre:    document.getElementById("registroNombre").value.trim(),
-    apellido:  document.getElementById("registroApellido").value.trim(),
-    correo:    document.getElementById("registroCorreo").value.trim(),
-    telefono:  document.getElementById("registroTelefono").value.trim(),
-    pais:      document.getElementById("pais").value,
-    ciudad:    document.getElementById("ciudad").value,
+    nombre:     document.getElementById("registroNombre").value.trim(),
+    apellido:   document.getElementById("registroApellido").value.trim(),
+    correo:     document.getElementById("registroCorreo").value.trim(),
+    cedula:     document.getElementById("registroCedula").value.trim(),
+    telefono:   document.getElementById("registroTelefono").value.trim(),
+    pais:       document.getElementById("pais").value,
+    ciudad:     document.getElementById("ciudad").value,
     contrasena: document.getElementById("pass").value.trim()
   };
 
-  if (!datos.nombre || !datos.apellido || !datos.correo || !datos.telefono || !datos.pais || !datos.ciudad || !datos.contrasena) {
+  if (!datos.nombre || !datos.apellido || !datos.correo || !datos.cedula ||
+      !datos.telefono || !datos.pais || !datos.ciudad || !datos.contrasena) {
     mensaje.innerText = "Completa todos los campos para registrarte.";
+    mensaje.className = "registro-mensaje error";
+    return;
+  }
+
+  if (!/^\d{5,15}$/.test(datos.cedula)) {
+    mensaje.innerText = "El número de documento debe contener solo dígitos (5 a 15).";
     mensaje.className = "registro-mensaje error";
     return;
   }
@@ -117,6 +128,7 @@ async function registrarUsuario() {
     document.getElementById("registroNombre").value   = "";
     document.getElementById("registroApellido").value = "";
     document.getElementById("registroCorreo").value   = "";
+    document.getElementById("registroCedula").value   = "";
     document.getElementById("registroTelefono").value = "";
     document.getElementById("pass").value             = "";
   } catch (error) {
@@ -126,12 +138,14 @@ async function registrarUsuario() {
 }
 
 /* ========================
-   CONTRASEÑA
+   OJO CONTRASEÑA
    ======================== */
 
-function togglePass() {
-  let p = document.getElementById("pass");
-  p.type = p.type === "password" ? "text" : "password";
+function toggleOjo(inputId, btn) {
+  const input = document.getElementById(inputId);
+  const visible = input.type === "text";
+  input.type = visible ? "password" : "text";
+  btn.textContent = visible ? "👁️" : "🙈";
 }
 
 /* ========================
@@ -139,11 +153,11 @@ function togglePass() {
    ======================== */
 
 function ciudades() {
-  let pais = document.getElementById("pais").value;
-  let c    = document.getElementById("ciudad");
+  const pais = document.getElementById("pais").value;
+  const c    = document.getElementById("ciudad");
   c.innerHTML = "";
 
-  let lista = {
+  const lista = {
     Colombia:  ["Bogotá", "Medellín", "Cali"],
     México:    ["CDMX", "Guadalajara", "Monterrey"],
     España:    ["Madrid", "Barcelona", "Valencia"],
@@ -152,7 +166,7 @@ function ciudades() {
   };
 
   lista[pais].forEach(ci => {
-    let op  = document.createElement("option");
+    const op  = document.createElement("option");
     op.text = ci;
     c.add(op);
   });

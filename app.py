@@ -1,7 +1,7 @@
 import os
 import sys
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, session, redirect, send_from_directory
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path:
@@ -15,15 +15,83 @@ from consultas.proveedores import listar_proveedores, consultar_proveedores_por_
 from consultas.riders import guardar_rider, obtener_rider, listar_riders, eliminar_rider, guardar_genero_rider
 
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder=None)
 
+# Cambia esto por algo aleatorio en producción
+app.secret_key = os.environ.get("FLASK_SECRET", "jvs-horizon-secret-2025")
+
+ROLES_ADMIN = {1, 2, 3}
+
+# ── Ajusta estas rutas si tus carpetas tienen otro nombre ──────────────────
+WEB_DIR   = os.path.join(BASE_DIR, "web")
+LOGIN_DIR = os.path.join(WEB_DIR, "login")
+APP_DIR   = os.path.join(WEB_DIR, "app")
+ADMIN_DIR = os.path.join(WEB_DIR, "JVS FRONTED ADMINISTRADOR")
+
+
+# ─── Helpers de sesión ───────────────────────────────────────────────────────
+
+def usuario_activo():
+    return session.get("usuario")
+
+def es_admin():
+    u = usuario_activo()
+    return bool(u and u.get("rol_id") in ROLES_ADMIN)
+
+
+# ─── CORS ─────────────────────────────────────────────────────────────────────
 
 @app.after_request
 def permitir_frontend_local(respuesta):
-    respuesta.headers["Access-Control-Allow-Origin"] = "*"
-    respuesta.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-    respuesta.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    origen = request.headers.get("Origin", "http://127.0.0.1:5000")
+    respuesta.headers["Access-Control-Allow-Origin"]      = origen
+    respuesta.headers["Access-Control-Allow-Methods"]     = "GET, POST, PUT, DELETE, OPTIONS"
+    respuesta.headers["Access-Control-Allow-Headers"]     = "Content-Type"
+    respuesta.headers["Access-Control-Allow-Credentials"] = "true"
     return respuesta
+
+
+# ─── Páginas (protegidas por sesión Flask) ────────────────────────────────────
+
+@app.get("/")
+@app.get("/web/login/")
+@app.get("/web/login/index.html")
+def pagina_login():
+    """Si hay sesión activa redirige; si no, muestra el login."""
+    u = usuario_activo()
+    if u:
+        return redirect("/web/admin/" if u.get("rol_id") in ROLES_ADMIN else "/web/app/")
+    return send_from_directory(LOGIN_DIR, "index.html")
+
+@app.get("/web/app/")
+@app.get("/web/app/index.html")
+def pagina_app():
+    if not usuario_activo():
+        return redirect("/web/login/")
+    return send_from_directory(APP_DIR, "index.html")
+
+@app.get("/web/admin/")
+@app.get("/web/admin/index.html")
+def pagina_admin():
+    if not es_admin():
+        return redirect("/web/login/")
+    return send_from_directory(ADMIN_DIR, "index.html")
+
+@app.get("/web/login/<path:filename>")
+def static_login(filename):
+    return send_from_directory(LOGIN_DIR, filename)
+
+@app.get("/web/app/<path:filename>")
+def static_app(filename):
+    if not usuario_activo():
+        return redirect("/web/login/")
+    return send_from_directory(APP_DIR, filename)
+
+@app.get("/web/admin/<path:filename>")
+def static_admin(filename):
+    if not es_admin():
+        return redirect("/web/login/")
+    return send_from_directory(ADMIN_DIR, filename)
 
 
 def convertir_evento_a_json(evento):
@@ -45,10 +113,10 @@ def convertir_evento_a_json(evento):
 
 @app.post("/api/login")
 def iniciar_sesion():
-    """Valida las credenciales enviadas desde el frontend."""
+    """Valida las credenciales y abre la sesión Flask."""
     try:
         datos = request.get_json(silent=True) or {}
-        correo = datos.get("correo")
+        correo     = datos.get("correo")
         contrasena = datos.get("contrasena")
 
         if not correo or not contrasena:
@@ -59,12 +127,20 @@ def iniciar_sesion():
         if usuario:
             if usuario["estado"] == "Inactivo":
                 return jsonify({"ok": False, "error": "Usuario inactivo"}), 403
+            session["usuario"] = usuario          # ← abre sesión en el servidor
             return jsonify({"ok": True, "mensaje": "Bienvenido", "usuario": usuario})
         else:
             return jsonify({"ok": False, "error": "Correo o contrasena incorrectos"}), 401
 
     except Exception as error:
         return jsonify({"ok": False, "error": str(error)}), 500
+
+
+@app.post("/api/logout")
+def cerrar_sesion_api():
+    """Destruye la sesión del servidor."""
+    session.clear()
+    return jsonify({"ok": True})
 
 
 @app.get("/api/ventas")
@@ -308,14 +384,6 @@ def eliminar_rider_api(artista_id):
     except Exception as error:
         return jsonify({"ok": False, "error": str(error)}), 500
 
-
-@app.get("/")
-def inicio():
-    return jsonify({
-        "ok": True,
-        "mensaje": "API de boleteria activa",
-        "endpoint_eventos": "/api/eventos"
-    })
 
 
 if __name__ == "__main__":
