@@ -45,11 +45,27 @@ def es_admin():
 
 @app.after_request
 def permitir_frontend_local(respuesta):
-    origen = request.headers.get("Origin", "http://127.0.0.1:5000")
+    origen = request.headers.get("Origin", f"http://{request.host}")
     respuesta.headers["Access-Control-Allow-Origin"]      = origen
     respuesta.headers["Access-Control-Allow-Methods"]     = "GET, POST, PUT, DELETE, OPTIONS"
     respuesta.headers["Access-Control-Allow-Headers"]     = "Content-Type"
     respuesta.headers["Access-Control-Allow-Credentials"] = "true"
+    return respuesta
+
+
+# ─── Sin caché en páginas protegidas por sesión ───────────────────────────────
+# Evita que el botón "atrás" del navegador muestre una versión cacheada del
+# login/admin/app (bfcache o caché de disco) en vez de volver a pedirle la
+# página a Flask. Sin esto, alguien con sesión activa podía "retroceder" y
+# ver el formulario de login viejo aunque ya estuviera logueado (o viceversa:
+# ver una página protegida tras cerrar sesión).
+
+@app.after_request
+def evitar_cache_paginas_web(respuesta):
+    if request.path.startswith("/web/"):
+        respuesta.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        respuesta.headers["Pragma"] = "no-cache"
+        respuesta.headers["Expires"] = "0"
     return respuesta
 
 
@@ -163,6 +179,20 @@ def iniciar_sesion():
 
     except Exception as error:
         return jsonify({"ok": False, "error": str(error)}), 500
+
+
+@app.get("/api/sesion")
+def obtener_sesion():
+    """Devuelve el rol del usuario activo para que el frontend muestre/oculte elementos."""
+    u = usuario_activo()
+    if not u:
+        return jsonify({"ok": False, "autenticado": False})
+    return jsonify({
+        "ok": True,
+        "autenticado": True,
+        "rol_id": u.get("rol_id"),
+        "es_admin": u.get("rol_id") in ROLES_ADMIN
+    })
 
 
 @app.post("/api/logout")
@@ -416,4 +446,4 @@ def eliminar_rider_api(artista_id):
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)

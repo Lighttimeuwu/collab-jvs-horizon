@@ -1,4 +1,4 @@
-const API_USUARIOS_URL = "http://127.0.0.1:5000/api/usuarios";
+const API_USUARIOS_URL = "/api/usuarios";
 
 /* ========================
    GUARDIA: bloquear retroceso si hay sesión activa
@@ -46,7 +46,7 @@ async function login(evento) {
   if (loader) loader.style.display = "flex";
 
   try {
-    const respuesta = await fetch("http://127.0.0.1:5000/api/login", {
+    const respuesta = await fetch("/api/login", {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },

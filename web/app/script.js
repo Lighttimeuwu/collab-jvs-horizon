@@ -1,5 +1,5 @@
-const API_USUARIOS_URL      = "http://127.0.0.1:5000/api/usuarios";
-const API_ASIENTOS_OCUPADOS_URL = "http://127.0.0.1:5000/api/asientos-ocupados";
+const API_USUARIOS_URL      = "/api/usuarios";
+const API_ASIENTOS_OCUPADOS_URL = "/api/asientos-ocupados";
 
 /* ========================
    NAVEGACIÓN ENTRE MÓDULOS
@@ -21,7 +21,7 @@ async function cerrarSesion() {
   localStorage.removeItem("usuarioLogueado");
   localStorage.removeItem("admin_sesion_activa");
   try {
-    await fetch("http://127.0.0.1:5000/api/logout", {
+    await fetch("/api/logout", {
       method: "POST",
       credentials: "include"
     });
@@ -471,7 +471,7 @@ async function cargarEventosAPI() {
   if (!contenedor) return;
 
   try {
-    const respuesta = await fetch("http://127.0.0.1:5000/api/eventos");
+    const respuesta = await fetch("/api/eventos");
     if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`);
 
     const datos = await respuesta.json();
@@ -846,7 +846,7 @@ async function confirmarPagoPSE() {
 
   const usuarioLogueado = JSON.parse(localStorage.getItem("usuarioLogueado") || "{}");
   try {
-    await fetch("http://127.0.0.1:5000/api/ventas/web", {
+    await fetch("/api/ventas/web", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1102,7 +1102,7 @@ async function cargarMisEntradas() {
   contenedor.innerHTML = "<p>Cargando entradas...</p>";
 
   try {
-    const respuesta = await fetch(`http://127.0.0.1:5000/api/ventas/usuario/${encodeURIComponent(correo)}`);
+    const respuesta = await fetch(`/api/ventas/usuario/${encodeURIComponent(correo)}`);
     const datos     = await respuesta.json();
 
     if (!datos.ok || datos.ventas.length === 0) {

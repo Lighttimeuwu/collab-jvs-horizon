@@ -263,3 +263,26 @@ button {
 .sent-board-status.in-module {
   margin: 0 0 0 auto;
 }
+
+/* ===== BOTÓN CERRAR SESIÓN ===== */
+.btn-cerrar-sesion {
+    position: fixed;
+    top: 14px;
+    right: 18px;
+    z-index: 9999;
+    background: #7a0018;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 9px 16px;
+    font-weight: bold;
+    font-size: 13px;
+    cursor: pointer;
+    box-shadow: 0 0 12px rgba(122,0,24,0.6);
+    transition: 0.2s;
+}
+.btn-cerrar-sesion:hover {
+    background: #ff0033;
+    box-shadow: 0 0 20px rgba(255,0,51,0.7);
+    transform: scale(1.05);
+}

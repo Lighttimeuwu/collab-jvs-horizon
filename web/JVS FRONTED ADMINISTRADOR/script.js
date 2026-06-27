@@ -35,6 +35,16 @@ window.addEventListener("DOMContentLoaded", function() {
     mostrarMenuAdministrador();
 });
 
+
+// ===== CERRAR SESIÓN =====
+async function cerrarSesion() {
+    localStorage.removeItem("usuarioLogueado");
+    localStorage.removeItem("admin_sesion_activa");
+    try {
+        await fetch("/api/logout", { method: "POST", credentials: "include" });
+    } catch (e) {}
+    window.location.href = "/web/login/";
+}
 // ===== FOTO DE PERFIL =====
 function showOptions() {
     const opt = document.getElementById("photoOptions");

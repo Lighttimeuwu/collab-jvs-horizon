@@ -1,7 +1,7 @@
 let artistaIdActual = "";
 let riderFiltroActual = null;
-const API_EVENTOS_URL = 'http://127.0.0.1:5000/api/eventos';
-const API_RIDERS_URL = 'http://127.0.0.1:5000/api/riders';
+const API_EVENTOS_URL = '/api/eventos';
+const API_RIDERS_URL = '/api/riders';
 function urlActualizarEventoSQLite(id) { return API_EVENTOS_URL + '/' + id; }
 function urlRider(artistaId) { return API_RIDERS_URL + '/' + encodeURIComponent(artistaId); }
 function urlGeneroRider(artistaId) { return API_RIDERS_URL + '/' + encodeURIComponent(artistaId) + '/genero'; }
@@ -592,7 +592,9 @@ function quitarEventoDeCartelera(id) {
 
 function volverAdministrador() {
     localStorage.setItem('admin_entrar_menu', 'true');
-    window.location.href = '../JVS FRONTED ADMINISTRADOR/index.html';
+    // Flask siempre sirve el panel admin en /web/admin/ sin importar
+    // donde este alojada la carpeta fisica en el disco.
+    window.location.href = '/web/admin/';
 }
 function obtenerNombreArtista(id) {
     const tarjeta = document.getElementById(id);
@@ -671,8 +673,37 @@ function limpiarImagenesBase64LocalStorage() {
     }
 }
 
+async function verificarRolAdmin() {
+    // Pregunta al servidor Flask qué rol tiene la sesión activa.
+    // Si es rol 1 (admin), muestra el botón "Menu administrador".
+    // Si no hay sesión o el rol no es admin, el botón permanece oculto.
+    try {
+        const respuesta = await fetch('/api/sesion', { credentials: 'include' });
+        if (!respuesta.ok) return;
+        const datos = await respuesta.json();
+        if (datos.ok && datos.autenticado && datos.rol_id === 1) {
+            const btn = document.getElementById('btn-admin');
+            if (btn) btn.style.display = '';
+        }
+    } catch (e) {
+        // Flask no disponible: el botón permanece oculto (comportamiento seguro)
+        console.warn('No se pudo verificar el rol de sesión:', e);
+    }
+}
+
+
+async function cerrarSesion() {
+    localStorage.removeItem("usuarioLogueado");
+    localStorage.removeItem("admin_sesion_activa");
+    try {
+        await fetch("/api/logout", { method: "POST", credentials: "include" });
+    } catch (e) {}
+    window.location.href = "/web/login/";
+}
+
 window.onload = function () {
     limpiarImagenesBase64LocalStorage();
+    verificarRolAdmin();
     cargarEventosDesdeAPI();
     prepararBotonesEliminarEventosBase();
     aplicarEventosBaseEliminados();

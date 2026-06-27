@@ -5,22 +5,17 @@
     <title>Perfil Administrador Eventos</title>
     <link rel="stylesheet" href="styles.css">
 </head>
-<body> 
+<body>
 
-<!-- ========== CONTENEDOR PRINCIPAL ========== -->
+<button class="btn-cerrar-sesion" onclick="cerrarSesion()" title="Cerrar sesión">🔒 Cerrar sesión</button>
+
 <div class="container">
-
     <h3 id="bienvenida" style="text-align:center; margin-bottom:15px; font-size:18px;"></h3>
-
-    <!-- Perfil -->
     <div class="profile">
         <img id="mainPhoto" src="imagen/PERFIL 1.jpg" alt="Foto de perfil">
         <div class="edit" onclick="showOptions()">✏️</div>
-
         <h2>HORIZON JVS</h2>
         <p>Cédula: 12345678</p>
-
-        <!-- Opciones de foto -->
         <div class="options" id="photoOptions">
             <img src="imagen/PERFIL 1.jpg"      onclick="changePhoto(this.src)" alt="Foto 1">
             <img src="imagen/PERFIL 2.jpg"      onclick="changePhoto(this.src)" alt="Foto 2">
@@ -28,17 +23,12 @@
             <img src="imagen/perfil tres.webp"  onclick="changePhoto(this.src)" alt="Foto 4">
         </div>
     </div>
-
-    <!-- Tabs -->
     <div class="tab" onclick="abrirCoord()">Coordinador de Eventos</div>
     <div class="tab" onclick="abrirVend()">Vendedor</div>
     <div class="tab" onclick="abrirVistaUsuario()">Vista usuario</div>
     <div class="tab" onclick="abrirReservas()">Reservas de eventos</div>
+</div>
 
-</div><!-- /container -->
-
-
-<!-- ========== MODAL: COORDINADOR ========== -->
 <div id="ventanaCoord" class="modal">
     <div class="modal-box">
         <img src="imagen/PERFIL 2.jpg" class="avatar" alt="Coordinador">
@@ -47,137 +37,52 @@
         <p><b>Teléfono:</b> 3214586545</p>
         <p><b>Usuario:</b> coordinador1</p>
         <p><b>Contraseña:</b> ***********</p>
-
         <button onclick="cerrarCoord()" class="cerrar-btn">Cerrar</button>
         <br><br>
-        <a href="/web/booking/">
-    <button>Rider Técnico</button>
-</a>
-        
+        <a href="/web/booking/"><button>Rider Técnico</button></a>
         <button onclick="verProveedores()">Ver proveedores</button>
     </div>
 </div>
 
-
-<!-- ========== MODAL: VENDEDOR ========== -->
 <div id="ventanaVend" class="modal">
     <div class="modal-box">
-
         <img src="imagen/PERFIL 3.jpg" class="avatar" alt="Vendedor">
-
         <h2>Vendedor</h2>
-
         <p><b>Usuario:</b> user01</p>
         <p><b>Contraseña:</b> *********</p>
-
-        <button onclick="verSalario()">
-            Ver salario
-        </button>
-
-        <br><br>
-
-        <button onclick="verInventarioVend()">
-            Ver inventario
-        </button>
-
-        <br><br>
-
-        <button onclick="verVentasMes()">
-            Ventas del mes
-        </button>
-
-        <br><br>
-
-        <button onclick="cerrarVend()" class="cerrar-btn">
-            Cerrar
-        </button>
-
+        <button onclick="verSalario()">Ver salario</button><br><br>
+        <button onclick="verInventarioVend()">Ver inventario</button><br><br>
+        <button onclick="verVentasMes()">Ventas del mes</button><br><br>
+        <button onclick="cerrarVend()" class="cerrar-btn">Cerrar</button>
     </div>
 </div>
 
-<!-- ========== MODAL: INVENTARIO ========== -->
 <div id="inventarioVend" class="modal">
-
     <div class="modal-box inventario-box">
-
         <div class="inventario-header">
-
             <h2>📦 Inventario</h2>
-
-            <button onclick="cerrarInventario()" class="cerrar-btn">
-                ✖
-            </button>
-
+            <button onclick="cerrarInventario()" class="cerrar-btn">✖</button>
         </div>
-
         <div id="listaInventario"></div>
-
         <div class="inventario-botones">
-
-            <button onclick="agregarProducto()" class="btn-agregar">
-                ➕ Agregar producto
-            </button>
-
-            <button onclick="guardarCambios()" class="btn-guardar">
-                💾 Guardar cambios
-            </button>
-
+            <button onclick="agregarProducto()" class="btn-agregar">➕ Agregar producto</button>
+            <button onclick="guardarCambios()" class="btn-guardar">💾 Guardar cambios</button>
         </div>
-
     </div>
-
 </div>
-
-
-<!-- ========== MODAL: SALARIO ========== -->
- <!-- ========== MODAL AGREGAR / EDITAR PRODUCTO ========== -->
 
 <div id="modalProducto" class="modal">
-
     <div class="modal-box">
-
         <h2 id="tituloModalProducto">Agregar producto</h2>
-
-        <input
-            type="text"
-            id="nombreProducto"
-            placeholder="Nombre del producto">
-
-        <input
-            type="number"
-            id="precioProducto"
-            placeholder="Precio">
-
-        <input
-            type="number"
-            id="stockProducto"
-            placeholder="Stock disponible">
-
-        <label style="display:block; margin-top:15px;">
-            Imagen del producto
-        </label>
-
-        <input
-            type="file"
-            id="imagenProducto"
-            accept="image/*">
-
+        <input type="text"   id="nombreProducto" placeholder="Nombre del producto">
+        <input type="number" id="precioProducto" placeholder="Precio">
+        <input type="number" id="stockProducto"  placeholder="Stock disponible">
+        <label style="display:block; margin-top:15px;">Imagen del producto</label>
+        <input type="file"   id="imagenProducto" accept="image/*">
         <br><br>
-
-        <button onclick="guardarProducto()">
-            Guardar
-        </button>
-
-        <button
-            onclick="cerrarModalProducto()"
-            class="cerrar-btn">
-
-            Cancelar
-
-        </button>
-
+        <button onclick="guardarProducto()">Guardar</button>
+        <button onclick="cerrarModalProducto()" class="cerrar-btn">Cancelar</button>
     </div>
-
 </div>
 
 <div id="ventanaSalario" class="modal">
@@ -198,9 +103,6 @@
     </div>
 </div>
 
-
-
-<!-- ========== MODAL: RESERVAS DE EVENTOS ========== -->
 <div id="ventanaReservas" class="modal">
     <div class="modal-box inventario-box">
         <div class="inventario-header">
@@ -210,7 +112,7 @@
         <div id="listaReservasEventos"></div>
     </div>
 </div>
-<!-- ========== SCRIPT ========== -->
+
 <script src="script.js"></script>
 </body>
 </html>

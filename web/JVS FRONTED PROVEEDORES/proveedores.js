@@ -155,6 +155,18 @@ function mandarACartelera(eventId) {
   data[eventId].enCartelera = true;
   guardarDatos();
   localStorage.setItem("cartelera_usuario", JSON.stringify(actualizada));
+
+  // ── CORRECCIÓN: marcar enCartelera:true en eventos_publicados ──────────────
+  // script.js (vista del usuario) renderiza desde 'eventos_publicados', NO desde
+  // 'cartelera_usuario'. Sin esta actualización el evento nunca aparece visible.
+  const eventosPublicados = JSON.parse(localStorage.getItem("eventos_publicados")) || [];
+  const idxPublicado = eventosPublicados.findIndex(ev => ev.id === eventId);
+  if (idxPublicado >= 0) {
+    eventosPublicados[idxPublicado].enCartelera = true;
+    localStorage.setItem("eventos_publicados", JSON.stringify(eventosPublicados));
+  }
+  // ──────────────────────────────────────────────────────────────────────────
+
   alert("Evento enviado a la cartelera de usuario.");
   renderEventList();
 }
@@ -363,8 +375,18 @@ function cancel() {
   renderEventList();
 }
 
+
+async function cerrarSesion() {
+    localStorage.removeItem("usuarioLogueado");
+    localStorage.removeItem("admin_sesion_activa");
+    try {
+        await fetch("/api/logout", { method: "POST", credentials: "include" });
+    } catch (e) {}
+    window.location.href = "/web/login/";
+}
+
 function volverAdministrador() {
-  window.location.href = "/web/admin/";
+  window.location.href = '/web/admin/';
 }
 
 window.addEventListener("DOMContentLoaded", renderEventList);
