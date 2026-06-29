@@ -322,3 +322,63 @@ button {
   transform: translateY(1px);
   box-shadow: 0 2px 8px rgba(47, 0, 255, 0.4);
 }
+
+
+/* ==========================================
+   BOTÓN VOLVER A EVENTOS (Vista Proveedores)
+   ========================================== */
+.btn-volver-proveedores {
+  position: absolute;
+  top: 18px;
+  left: 18px; /* Si se cruza con otro botón, puedes cambiarlo a 'right: 85px;' por ejemplo */
+  background: linear-gradient(135deg, #0077b6, #00b4d8);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  padding: 10px 15px;
+  font-size: 14px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0, 119, 182, 0.3);
+  transition: all 0.3s ease;
+  z-index: 9998;
+}
+
+.btn-volver-proveedores:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 15px rgba(0, 180, 216, 0.5);
+  background: linear-gradient(135deg, #0096c7, #48cae4);
+  color: #000;
+}
+
+
+/* ==========================================
+   BOTÓN VOLVER A EVENTOS (Vista Proveedores)
+   ========================================== */
+.btn-volver-eventos-prov {
+  position: absolute;
+  top: 65px; /* Lo bajamos para que no tape a "🔄 Booking" (que está en top: 18px) */
+  left: 18px;
+  background: linear-gradient(135deg, #0077b6, #00b4d8);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  padding: 10px 15px;
+  font-size: 13px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0, 119, 182, 0.3);
+  transition: all 0.3s ease;
+  z-index: 9998;
+}
+
+.btn-volver-eventos-prov:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 15px rgba(0, 180, 216, 0.5);
+  background: linear-gradient(135deg, #0096c7, #48cae4);
+  color: #000;
+}
