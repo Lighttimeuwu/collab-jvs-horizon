@@ -14,10 +14,24 @@ def asegurar_columnas_eventos(cursor):
     columnas_evento = {fila[1] for fila in cursor.execute("PRAGMA table_info(Evento)").fetchall()}
     if "Imagen" not in columnas_evento:
         cursor.execute("ALTER TABLE Evento ADD COLUMN Imagen TEXT")
+    if "Publicado" not in columnas_evento:
+        cursor.execute("ALTER TABLE Evento ADD COLUMN Publicado INTEGER NOT NULL DEFAULT 0")
 
     columnas_funcion = {fila[1] for fila in cursor.execute("PRAGMA table_info(Funcion)").fetchall()}
     if "Ciudad" not in columnas_funcion:
         cursor.execute("ALTER TABLE Funcion ADD COLUMN Ciudad TEXT")
+
+
+def asegurar_tabla_personal_tecnico(cursor):
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS Personal_Tecnico_Evento (
+            Personal_Id INTEGER PRIMARY KEY AUTOINCREMENT,
+            Evento_Id   INTEGER NOT NULL,
+            Nombre      TEXT NOT NULL,
+            Funciones   TEXT NOT NULL DEFAULT '',
+            FOREIGN KEY (Evento_Id) REFERENCES Evento(Evento_Id)
+        )
+    """)
 
 
 # 1. LISTAR EVENTOS
@@ -29,7 +43,7 @@ def listar_eventos():
     conexion.commit()
 
     cursor.execute("""
-        SELECT E.Evento_Id, E.Nombre, E.Fecha, E.Descripcion, E.Hora, U.Nombre, E.Imagen
+        SELECT E.Evento_Id, E.Nombre, E.Fecha, E.Descripcion, E.Hora, U.Nombre, E.Imagen, E.Publicado
         FROM Evento E
         LEFT JOIN Ubicacion U ON E.Ubicacion_Id = U.Ubicacion_Id
     """)
@@ -48,7 +62,7 @@ def buscar_evento(evento_id):
     conexion.commit()
 
     cursor.execute("""
-        SELECT E.Evento_Id, E.Nombre, E.Fecha, E.Descripcion, E.Hora, U.Nombre, E.Imagen
+        SELECT E.Evento_Id, E.Nombre, E.Fecha, E.Descripcion, E.Hora, U.Nombre, E.Imagen, E.Publicado
         FROM Evento E
         LEFT JOIN Ubicacion U ON E.Ubicacion_Id = U.Ubicacion_Id
         WHERE E.Evento_Id = ?
@@ -316,3 +330,134 @@ def consultar_aforo():
     datos = cursor.fetchall()
     conexion.close()
     return datos
+
+
+# ─── Publicación a cartelera (visible para usuarios finales) ──────────────
+
+def publicar_evento(evento_id):
+    """Marca un evento como publicado (visible en la cartelera de usuarios)."""
+    conexion = conectar()
+    cursor = conexion.cursor()
+    try:
+        asegurar_columnas_eventos(cursor)
+        cursor.execute("UPDATE Evento SET Publicado = 1 WHERE Evento_Id = ?", (evento_id,))
+        if cursor.rowcount == 0:
+            raise ValueError("El evento no existe")
+        conexion.commit()
+        return buscar_evento(evento_id)
+    except Exception:
+        conexion.rollback()
+        raise
+    finally:
+        conexion.close()
+
+
+def despublicar_evento(evento_id):
+    """Retira un evento de la cartelera publica (vuelve a quedar oculto)."""
+    conexion = conectar()
+    cursor = conexion.cursor()
+    try:
+        asegurar_columnas_eventos(cursor)
+        cursor.execute("UPDATE Evento SET Publicado = 0 WHERE Evento_Id = ?", (evento_id,))
+        if cursor.rowcount == 0:
+            raise ValueError("El evento no existe")
+        conexion.commit()
+        return buscar_evento(evento_id)
+    except Exception:
+        conexion.rollback()
+        raise
+    finally:
+        conexion.close()
+
+
+# ─── Personal técnico asignado a un evento ─────────────────────────────────
+
+def listar_personal_tecnico(evento_id):
+    """Devuelve el personal tecnico asignado a un evento."""
+    conexion = conectar()
+    cursor = conexion.cursor()
+    try:
+        asegurar_tabla_personal_tecnico(cursor)
+        cursor.execute("""
+            SELECT Personal_Id, Nombre, Funciones
+            FROM Personal_Tecnico_Evento
+            WHERE Evento_Id = ?
+            ORDER BY Personal_Id
+        """, (evento_id,))
+        return [
+            {
+                "personal_id": fila[0],
+                "nombre": fila[1],
+                "funciones": fila[2].split("|") if fila[2] else []
+            }
+            for fila in cursor.fetchall()
+        ]
+    finally:
+        conexion.close()
+
+
+def agregar_personal_tecnico(evento_id, nombre, funciones):
+    """Agrega una persona de personal tecnico a un evento."""
+    nombre = (nombre or "").strip()
+    if not nombre:
+        raise ValueError("El nombre del personal es obligatorio")
+
+    funciones_texto = "|".join(f.strip() for f in (funciones or []) if f.strip())
+
+    conexion = conectar()
+    cursor = conexion.cursor()
+    try:
+        asegurar_tabla_personal_tecnico(cursor)
+        cursor.execute("""
+            INSERT INTO Personal_Tecnico_Evento (Evento_Id, Nombre, Funciones)
+            VALUES (?, ?, ?)
+        """, (evento_id, nombre, funciones_texto))
+        conexion.commit()
+        return {"personal_id": cursor.lastrowid, "nombre": nombre, "funciones": funciones or []}
+    except Exception:
+        conexion.rollback()
+        raise
+    finally:
+        conexion.close()
+
+
+def eliminar_personal_tecnico(personal_id):
+    """Elimina una persona de personal tecnico por su Personal_Id."""
+    conexion = conectar()
+    cursor = conexion.cursor()
+    try:
+        asegurar_tabla_personal_tecnico(cursor)
+        cursor.execute("DELETE FROM Personal_Tecnico_Evento WHERE Personal_Id = ?", (personal_id,))
+        conexion.commit()
+        return cursor.rowcount > 0
+    except Exception:
+        conexion.rollback()
+        raise
+    finally:
+        conexion.close()
+
+def guardar_imagen_evento(evento_id, imagen_base64):
+    """
+    Guarda o actualiza la imagen (base64 o URL) de un evento existente.
+    Lanza ValueError si el evento no existe.
+    """
+    imagen = (imagen_base64 or "").strip()
+    if not imagen:
+        raise ValueError("La imagen no puede estar vacía")
+
+    conexion = conectar()
+    cursor   = conexion.cursor()
+    try:
+        asegurar_columnas_eventos(cursor)
+        cursor.execute("SELECT Evento_Id FROM Evento WHERE Evento_Id = ?", (evento_id,))
+        if not cursor.fetchone():
+            raise ValueError("El evento no existe")
+
+        cursor.execute("UPDATE Evento SET Imagen = ? WHERE Evento_Id = ?", (imagen, evento_id))
+        conexion.commit()
+        return True
+    except Exception:
+        conexion.rollback()
+        raise
+    finally:
+        conexion.close()

@@ -11,6 +11,157 @@ if ruta_raiz not in sys.path:
 from utilidades.conexion import conectar
 
 
+ROL_CLIENTE_ID = 4
+ROLES_VALIDOS = {1, 2, 3, 4}
+
+
+def asegurar_tabla_usuario_rol(cursor):
+    """Crea Usuario_Rol si no existe (misma forma que usa migrar_roles.py)."""
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS Usuario_Rol (
+            Usuario_Id INTEGER NOT NULL,
+            Rol_Id     INTEGER NOT NULL,
+            PRIMARY KEY (Usuario_Id, Rol_Id),
+            FOREIGN KEY (Usuario_Id) REFERENCES Usuario(Usuario_Id),
+            FOREIGN KEY (Rol_Id)     REFERENCES Rol(Rol_Id)
+        )
+    """)
+
+
+def asegurar_columna_rol_en_usuario(cursor):
+    """
+    Agrega Usuario.Rol_Id si no existe todavia. Esta columna es una CACHE
+    de solo lectura visual (la fuente de verdad sigue siendo Usuario_Rol);
+    se actualiza con sincronizar_rol_id_usuario() cada vez que cambian los
+    roles de un usuario especifico.
+    """
+    columnas = {fila[1] for fila in cursor.execute("PRAGMA table_info(Usuario)").fetchall()}
+    if "Rol_Id" not in columnas:
+        cursor.execute("ALTER TABLE Usuario ADD COLUMN Rol_Id INTEGER REFERENCES Rol(Rol_Id)")
+
+
+def sincronizar_rol_id_usuario(cursor, usuario_id):
+    """
+    Recalcula Usuario.Rol_Id para UN usuario puntual, tomando el rol mas
+    relevante (menor Rol_Id) de entre todos los que tenga en Usuario_Rol.
+    Llamar siempre despues de insertar/eliminar filas en Usuario_Rol para
+    ese usuario.
+    """
+    cursor.execute("""
+        UPDATE Usuario
+        SET Rol_Id = (
+            SELECT MIN(UR.Rol_Id) FROM Usuario_Rol UR WHERE UR.Usuario_Id = ?
+        )
+        WHERE Usuario_Id = ?
+    """, (usuario_id, usuario_id))
+
+
+def listar_roles_catalogo():
+    """Devuelve todos los roles disponibles (Rol_Id, Nombre_Rol), para llenar selects en el frontend."""
+    conexion = conectar()
+    cursor = conexion.cursor()
+    try:
+        cursor.execute("SELECT Rol_Id, Nombre_Rol FROM Rol ORDER BY Rol_Id")
+        return [{"rol_id": fila[0], "nombre": fila[1]} for fila in cursor.fetchall()]
+    finally:
+        conexion.close()
+
+
+def listar_usuarios_con_roles():
+    """
+    Devuelve todos los usuarios con su(s) rol(es) actual(es), para el panel
+    de administracion de roles. Cada usuario incluye:
+      - rol_id / rol_nombre: el rol mas relevante (columna cache de Usuario)
+      - roles: lista completa de todos los roles que tiene en Usuario_Rol
+    """
+    conexion = conectar()
+    cursor = conexion.cursor()
+    try:
+        asegurar_tabla_usuario_rol(cursor)
+        asegurar_columna_rol_en_usuario(cursor)
+        conexion.commit()
+
+        cursor.execute("""
+            SELECT U.Usuario_Id, U.Nombre, U.Apellido, U.Correo, U.Estado, U.Rol_Id, R.Nombre_Rol
+            FROM Usuario U
+            LEFT JOIN Rol R ON U.Rol_Id = R.Rol_Id
+            ORDER BY U.Usuario_Id
+        """)
+        filas_usuario = cursor.fetchall()
+
+        cursor.execute("""
+            SELECT UR.Usuario_Id, UR.Rol_Id, R.Nombre_Rol
+            FROM Usuario_Rol UR
+            JOIN Rol R ON UR.Rol_Id = R.Rol_Id
+        """)
+        roles_por_usuario = {}
+        for usuario_id, rol_id, nombre_rol in cursor.fetchall():
+            roles_por_usuario.setdefault(usuario_id, []).append({"rol_id": rol_id, "nombre": nombre_rol})
+
+        usuarios = []
+        for fila in filas_usuario:
+            usuario_id = fila[0]
+            usuarios.append({
+                "usuario_id":  usuario_id,
+                "nombre":      fila[1],
+                "apellido":    fila[2],
+                "correo":      fila[3] or "",
+                "estado":      fila[4] or "",
+                "rol_id":      fila[5],
+                "rol_nombre":  fila[6] or "Sin rol",
+                "roles":       sorted(roles_por_usuario.get(usuario_id, []), key=lambda r: r["rol_id"])
+            })
+        return usuarios
+    finally:
+        conexion.close()
+
+
+def asignar_roles_usuario(usuario_id, roles_ids):
+    """
+    Reemplaza por completo el conjunto de roles de un usuario con los IDs
+    dados (lista de enteros, ej. [1, 4] = Administrador + Cliente). Luego
+    sincroniza la columna cache Usuario.Rol_Id. Si la lista queda vacia,
+    el usuario se queda sin ningun rol (Usuario.Rol_Id pasa a NULL).
+    """
+    usuario_id = int(usuario_id)
+    roles_unicos = sorted({int(r) for r in (roles_ids or [])})
+
+    invalidos = [r for r in roles_unicos if r not in ROLES_VALIDOS]
+    if invalidos:
+        raise ValueError(f"Rol(es) invalido(s): {invalidos}")
+
+    conexion = conectar()
+    cursor = conexion.cursor()
+    try:
+        asegurar_tabla_usuario_rol(cursor)
+        asegurar_columna_rol_en_usuario(cursor)
+
+        cursor.execute("SELECT Usuario_Id FROM Usuario WHERE Usuario_Id = ?", (usuario_id,))
+        if not cursor.fetchone():
+            raise ValueError("El usuario no existe")
+
+        cursor.execute("DELETE FROM Usuario_Rol WHERE Usuario_Id = ?", (usuario_id,))
+        cursor.executemany(
+            "INSERT OR IGNORE INTO Usuario_Rol (Usuario_Id, Rol_Id) VALUES (?, ?)",
+            [(usuario_id, rol_id) for rol_id in roles_unicos]
+        )
+        sincronizar_rol_id_usuario(cursor, usuario_id)
+        conexion.commit()
+
+        cursor.execute("SELECT Rol_Id FROM Usuario WHERE Usuario_Id = ?", (usuario_id,))
+        rol_resultante = cursor.fetchone()
+        return {
+            "usuario_id": usuario_id,
+            "roles": roles_unicos,
+            "rol_id": rol_resultante[0] if rol_resultante else None
+        }
+    except Exception:
+        conexion.rollback()
+        raise
+    finally:
+        conexion.close()
+
+
 def listar_usuarios():
     conexion = conectar()
     cursor = conexion.cursor()
@@ -75,47 +226,6 @@ def validar_login(correo, contrasena):
 
 
 ROL_CLIENTE_ID = 4
-
-
-def asegurar_tabla_usuario_rol(cursor):
-    """Crea Usuario_Rol si no existe (misma forma que usa migrar_roles.py)."""
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS Usuario_Rol (
-            Usuario_Id INTEGER NOT NULL,
-            Rol_Id     INTEGER NOT NULL,
-            PRIMARY KEY (Usuario_Id, Rol_Id),
-            FOREIGN KEY (Usuario_Id) REFERENCES Usuario(Usuario_Id),
-            FOREIGN KEY (Rol_Id)     REFERENCES Rol(Rol_Id)
-        )
-    """)
-
-
-def asegurar_columna_rol_en_usuario(cursor):
-    """
-    Agrega Usuario.Rol_Id si no existe todavia. Esta columna es una CACHE
-    de solo lectura visual (la fuente de verdad sigue siendo Usuario_Rol);
-    se actualiza con sincronizar_rol_id_usuario() cada vez que cambian los
-    roles de un usuario especifico.
-    """
-    columnas = {fila[1] for fila in cursor.execute("PRAGMA table_info(Usuario)").fetchall()}
-    if "Rol_Id" not in columnas:
-        cursor.execute("ALTER TABLE Usuario ADD COLUMN Rol_Id INTEGER REFERENCES Rol(Rol_Id)")
-
-
-def sincronizar_rol_id_usuario(cursor, usuario_id):
-    """
-    Recalcula Usuario.Rol_Id para UN usuario puntual, tomando el rol mas
-    relevante (menor Rol_Id) de entre todos los que tenga en Usuario_Rol.
-    Llamar siempre despues de insertar/eliminar filas en Usuario_Rol para
-    ese usuario.
-    """
-    cursor.execute("""
-        UPDATE Usuario
-        SET Rol_Id = (
-            SELECT MIN(UR.Rol_Id) FROM Usuario_Rol UR WHERE UR.Usuario_Id = ?
-        )
-        WHERE Usuario_Id = ?
-    """, (usuario_id, usuario_id))
 
 
 def obtener_o_crear_pais(cursor, nombre_pais):

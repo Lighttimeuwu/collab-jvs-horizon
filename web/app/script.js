@@ -2,6 +2,38 @@ const API_USUARIOS_URL      = "/api/usuarios";
 const API_ASIENTOS_OCUPADOS_URL = "/api/asientos-ocupados";
 
 /* ========================
+   SESIÓN (fuente de verdad: servidor, no localStorage)
+   ======================== */
+
+let usuarioSesionCache = null;
+
+async function obtenerUsuarioSesion(forzarRecarga = false) {
+  if (usuarioSesionCache && !forzarRecarga) return usuarioSesionCache;
+
+  try {
+    const respuesta = await fetch("/api/sesion", { credentials: "include" });
+    const datos = await respuesta.json();
+
+    if (!datos.ok || !datos.autenticado) {
+      usuarioSesionCache = null;
+      return null;
+    }
+
+    usuarioSesionCache = {
+      nombre:   datos.nombre   || "",
+      apellido: datos.apellido || "",
+      correo:   (datos.correo  || "").trim(),
+      cedula:   datos.cedula   || "",
+      telefono: datos.telefono || "",
+      rol_id:   datos.rol_id
+    };
+    return usuarioSesionCache;
+  } catch (_) {
+    return null;
+  }
+}
+
+/* ========================
    NAVEGACIÓN ENTRE MÓDULOS
    ======================== */
 
@@ -18,8 +50,7 @@ function mostrar(id) {
 }
 
 async function cerrarSesion() {
-  localStorage.removeItem("usuarioLogueado");
-  localStorage.removeItem("admin_sesion_activa");
+  usuarioSesionCache = null;
   try {
     await fetch("/api/logout", {
       method: "POST",
@@ -30,14 +61,23 @@ async function cerrarSesion() {
 }
 
 /* ========================
-   GUARD: redirigir si no hay sesión
+   GUARD: redirigir si no hay sesión + mensaje de bienvenida
    ======================== */
-(function verificarSesion() {
-  const usuario = JSON.parse(localStorage.getItem("usuarioLogueado") || "null");
+(async function verificarSesion() {
+  const usuario = await obtenerUsuarioSesion();
   if (!usuario) {
     window.location.href = "/web/login/";
+    return;
   }
+  mostrarBienvenida(usuario);
 })();
+
+function mostrarBienvenida(usuario) {
+  const contenedor = document.getElementById("bienvenidaUsuario");
+  if (!contenedor) return;
+  const nombre = usuario.nombre || "Usuario";
+  contenedor.innerText = `Bienvenido, ${nombre}`;
+}
 
 /* ========================
    HELPERS
@@ -197,8 +237,13 @@ function abrirModalEvento(evento) {
   const detalle = obtenerDetalleEvento(evento);
   const modal   = document.getElementById("modalEvento");
 
-  document.getElementById("modalEventoImagen").src         = detalle.img;
-  document.getElementById("modalEventoImagen").alt         = detalle.nombre;
+  const imgEl = document.getElementById("modalEventoImagen");
+  imgEl.src = detalle.img || "";
+  imgEl.alt = detalle.nombre;
+  imgEl.onerror = function() {
+    this.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='400'%3E%3Crect width='600' height='400' fill='%23222'/%3E%3Ctext x='50%25' y='50%25' fill='%23666' font-size='18' text-anchor='middle' dy='.3em'%3ESin imagen%3C/text%3E%3C/svg%3E";
+    this.onerror = null;
+  };
   document.getElementById("modalEventoGenero").innerText   = detalle.genero;
   document.getElementById("modalEventoNombre").innerText   = detalle.nombre;
   document.getElementById("modalEventoHora").innerText     = detalle.hora;
@@ -449,7 +494,7 @@ function normalizarEventoAPI(evento) {
     return funcion.lugar ? `${fecha} - ${funcion.lugar}` : fecha;
   });
   const primeraFuncion = funciones[0] || {};
-  const imgReal = evento.imagen || evento.img || "imagenes/doom.jpg.jpg";
+  const imgReal = evento.imagen || evento.img || "";
 
   return {
     id:                 `api_${evento.id}`,
@@ -471,7 +516,7 @@ async function cargarEventosAPI() {
   if (!contenedor) return;
 
   try {
-    const respuesta = await fetch("/api/eventos");
+    const respuesta = await fetch("/api/eventos?publicados=1");
     if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`);
 
     const datos = await respuesta.json();
@@ -490,13 +535,17 @@ async function cargarEventosAPI() {
 
     eventosAPI.forEach(evento => {
       const idSqlite = "sqlite_" + evento.apiId;
-      const gestion  = proveedoresData[idSqlite] || proveedoresData[String(evento.apiId)] || {};
-      if (gestion.enCartelera !== true) return;
-      if (idsCarteleraPublicada.has(idSqlite)) return;
+      // Los eventos de SQLite ya vienen filtrados por publicado=1 desde el servidor.
+      // Solo ocultamos duplicados que ya están en la cartelera del localStorage.
+      if (idsCarteleraPublicada.has(idSqlite) || idsCarteleraPublicada.has(evento.id)) return;
+
+      const imgSrc = evento.img
+        ? evento.img
+        : "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='190'%3E%3Crect width='300' height='190' fill='%23333'/%3E%3Ctext x='50%25' y='50%25' fill='%23999' font-size='14' text-anchor='middle' dy='.3em'%3ESin imagen%3C/text%3E%3C/svg%3E";
 
       contenedor.insertAdjacentHTML("beforeend", `
         <div class="evento evento-api" data-event-id="${escaparHTML(evento.id)}">
-          <img src="${escaparHTML(evento.img)}" alt="${escaparHTML(evento.nombre)}">
+          <img src="${escaparHTML(imgSrc)}" alt="${escaparHTML(evento.nombre)}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22300%22 height=%22190%22%3E%3Crect width=%22300%22 height=%22190%22 fill=%22%23333%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 fill=%22%23999%22 font-size=%2214%22 text-anchor=%22middle%22 dy=%22.3em%22%3ESin imagen%3C/text%3E%3C/svg%3E'">
           <h3>${escaparHTML(evento.nombre)}</h3>
           <div class="event-card-actions">
             <button onclick="verEventoAPI('${escaparHTML(evento.id)}')">Ver Evento</button>
@@ -737,8 +786,8 @@ function renderPasarelaPSE() {
   `;
 }
 
-function autocompletarDatosCompradorPSE() {
-  const usuarioLogueado = JSON.parse(localStorage.getItem("usuarioLogueado") || "{}");
+async function autocompletarDatosCompradorPSE() {
+  const usuarioLogueado = await obtenerUsuarioSesion();
   if (!usuarioLogueado || !usuarioLogueado.correo) return;
 
   const campoNombre    = document.getElementById("pseNombre");
@@ -746,14 +795,25 @@ function autocompletarDatosCompradorPSE() {
   const campoCorreo    = document.getElementById("pseCorreo");
   const campoTelefono  = document.getElementById("pseTelefono");
   const nombreCompleto = ((usuarioLogueado.nombre || "") + " " + (usuarioLogueado.apellido || "")).trim();
+  const correoEsValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(usuarioLogueado.correo);
 
   if (campoNombre    && !campoNombre.value.trim()    && nombreCompleto)           { campoNombre.value    = nombreCompleto;        campoNombre.readOnly    = true; }
   if (campoDocumento && !campoDocumento.value.trim() && usuarioLogueado.cedula)   { campoDocumento.value = usuarioLogueado.cedula; campoDocumento.readOnly = true; }
-  if (campoCorreo    && !campoCorreo.value.trim()    && usuarioLogueado.correo)   { campoCorreo.value    = usuarioLogueado.correo; campoCorreo.readOnly    = true; }
   if (campoTelefono  && !campoTelefono.value.trim()  && usuarioLogueado.telefono) { campoTelefono.value  = usuarioLogueado.telefono; campoTelefono.readOnly = true; }
+
+  if (campoCorreo && !campoCorreo.value.trim() && usuarioLogueado.correo) {
+    campoCorreo.value = usuarioLogueado.correo;
+    // Solo se bloquea el campo si el correo guardado tiene un formato valido.
+    // Si el correo registrado esta mal (dato antiguo o mal capturado), se deja
+    // editable para que el comprador pueda corregirlo en el momento del pago.
+    campoCorreo.readOnly = correoEsValido;
+    if (!correoEsValido) {
+      campoCorreo.title = "El correo registrado en tu cuenta parece invalido. Corrigelo aqui para continuar.";
+    }
+  }
 }
 
-function abrirPasarelaPSE() {
+async function abrirPasarelaPSE() {
   if (seleccionados.length === 0) { alert("Seleccione asientos"); return; }
 
   const compra = obtenerCompraSeleccionada();
@@ -765,7 +825,7 @@ function abrirPasarelaPSE() {
 
   renderPasarelaPSE();
   mostrar("pse");
-  autocompletarDatosCompradorPSE();
+  await autocompletarDatosCompradorPSE();
 }
 
 function obtenerDatosCompradorPSE() {
@@ -778,8 +838,9 @@ function obtenerDatosCompradorPSE() {
 }
 
 function validarDatosCompradorPSE(datos) {
-  const correoValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(datos.correo);
-  if (!datos.nombre || !datos.documento || !datos.correo || !datos.telefono) {
+  const correoNormalizado = (datos.correo || "").trim();
+  const correoValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correoNormalizado);
+  if (!datos.nombre || !datos.documento || !correoNormalizado || !datos.telefono) {
     alert("Completa todos los datos del comprador.");
     return false;
   }
@@ -844,14 +905,14 @@ async function confirmarPagoPSE() {
   compras.push(facturaActual);
   localStorage.setItem("compras_locales", JSON.stringify(compras));
 
-  const usuarioLogueado = JSON.parse(localStorage.getItem("usuarioLogueado") || "{}");
+  const usuarioLogueado = await obtenerUsuarioSesion();
   try {
     await fetch("/api/ventas/web", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        usuario_correo: usuarioLogueado.correo    || datosComprador.correo,
-        usuario_nombre: ((usuarioLogueado.nombre  || datosComprador.nombre) + " " + (usuarioLogueado.apellido || "")).trim(),
+        usuario_correo: (usuarioLogueado && usuarioLogueado.correo) || datosComprador.correo,
+        usuario_nombre: (((usuarioLogueado && usuarioLogueado.nombre) || datosComprador.nombre) + " " + ((usuarioLogueado && usuarioLogueado.apellido) || "")).trim(),
         evento:         facturaActual.evento,
         fecha_evento:   facturaActual.fechaEvento,
         lugar:          facturaActual.lugar,
@@ -1089,8 +1150,8 @@ function obtenerQRSrcVenta(venta, usuario) {
 }
 
 async function cargarMisEntradas() {
-  const usuario    = JSON.parse(localStorage.getItem("usuarioLogueado") || "{}");
-  const correo     = usuario.correo || "";
+  const usuario    = await obtenerUsuarioSesion();
+  const correo     = (usuario && usuario.correo) || "";
   const contenedor = document.getElementById("misEntradasLista");
   if (!contenedor) return;
 

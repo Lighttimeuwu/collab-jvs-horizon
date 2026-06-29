@@ -27,24 +27,29 @@ const productos = [
 
 let productoEditando = null;
 
-function mostrarMenuAdministrador() {
-    document.getElementById("bienvenida").innerText = "Hola Admin, bienvenido";
+async function mostrarMenuAdministrador() {
+    try {
+        const respuesta = await fetch("/api/sesion", { credentials: "include" });
+        const datos = await respuesta.json();
+
+        if (!datos.ok || !datos.autenticado) {
+            window.location.href = "/web/login/";
+            return;
+        }
+
+        const nombreCompleto = `${datos.nombre || ""} ${datos.apellido || ""}`.trim() || "Administrador";
+        document.getElementById("bienvenida").innerText = `Hola ${datos.nombre || "Admin"}, bienvenido`;
+        document.getElementById("nombreUsuario").innerText = nombreCompleto;
+        document.getElementById("cedulaUsuario").innerText = `Cédula: ${datos.cedula || "No registrada"}`;
+    } catch (error) {
+        document.getElementById("bienvenida").innerText = "Hola Admin, bienvenido";
+    }
 }
 
 window.addEventListener("DOMContentLoaded", function() {
     mostrarMenuAdministrador();
 });
 
-
-// ===== CERRAR SESIÓN =====
-async function cerrarSesion() {
-    localStorage.removeItem("usuarioLogueado");
-    localStorage.removeItem("admin_sesion_activa");
-    try {
-        await fetch("/api/logout", { method: "POST", credentials: "include" });
-    } catch (e) {}
-    window.location.href = "/web/login/";
-}
 // ===== FOTO DE PERFIL =====
 function showOptions() {
     const opt = document.getElementById("photoOptions");
@@ -243,6 +248,154 @@ window.addEventListener("storage", function(event) {
         renderReservasAdministrador();
     }
 });
+
+// ===== GESTION DE ROLES =====
+let rolesCatalogo = [];
+let usuariosRolesCache = [];
+
+function abrirRoles() {
+    document.getElementById("ventanaRoles").style.display = "flex";
+    document.getElementById("rolesBuscador").value = "";
+    cargarDatosRoles();
+}
+
+function cerrarRoles() {
+    document.getElementById("ventanaRoles").style.display = "none";
+}
+
+function mostrarMensajeRoles(texto, esError = false) {
+    const el = document.getElementById("rolesMensajeEstado");
+    el.innerText = texto;
+    el.style.color = esError ? "#ff4d4d" : "#ccc";
+}
+
+async function cargarDatosRoles() {
+    mostrarMensajeRoles("Cargando usuarios...");
+    try {
+        const [respRoles, respUsuarios] = await Promise.all([
+            fetch("/api/roles", { credentials: "include" }),
+            fetch("/api/usuarios/roles", { credentials: "include" })
+        ]);
+
+        const datosRoles = await respRoles.json();
+        const datosUsuarios = await respUsuarios.json();
+
+        if (!respRoles.ok || !datosRoles.ok) {
+            throw new Error(datosRoles.error || "No se pudo cargar el catalogo de roles");
+        }
+        if (!respUsuarios.ok || !datosUsuarios.ok) {
+            throw new Error(datosUsuarios.error || "No se pudo cargar la lista de usuarios");
+        }
+
+        rolesCatalogo = datosRoles.roles;
+        usuariosRolesCache = datosUsuarios.usuarios;
+        mostrarMensajeRoles(`${usuariosRolesCache.length} usuario(s) encontrados.`);
+        renderUsuariosRoles(usuariosRolesCache);
+    } catch (error) {
+        mostrarMensajeRoles("Error: " + error.message, true);
+        document.getElementById("listaUsuariosRoles").innerHTML = "";
+    }
+}
+
+function filtrarUsuariosRoles() {
+    const termino = document.getElementById("rolesBuscador").value.trim().toLowerCase();
+    if (!termino) {
+        renderUsuariosRoles(usuariosRolesCache);
+        return;
+    }
+    const filtrados = usuariosRolesCache.filter(u =>
+        `${u.nombre} ${u.apellido}`.toLowerCase().includes(termino) ||
+        (u.correo || "").toLowerCase().includes(termino)
+    );
+    renderUsuariosRoles(filtrados);
+}
+
+function renderUsuariosRoles(usuarios) {
+    const contenedor = document.getElementById("listaUsuariosRoles");
+
+    if (!usuarios.length) {
+        contenedor.innerHTML = "<p style='text-align:center;'>No se encontraron usuarios.</p>";
+        return;
+    }
+
+    contenedor.innerHTML = usuarios.map(usuario => {
+        const idsActuales = usuario.roles.map(r => r.rol_id);
+
+        const checkboxes = rolesCatalogo.map(rol => {
+            const marcado = idsActuales.includes(rol.rol_id) ? "checked" : "";
+            return `
+                <label class="rol-checkbox-label">
+                    <input type="checkbox" value="${rol.rol_id}" ${marcado}>
+                    ${rol.nombre}
+                </label>
+            `;
+        }).join("");
+
+        return `
+            <div class="usuario-rol-item" data-usuario-id="${usuario.usuario_id}">
+                <div class="usuario-rol-info">
+                    <div>
+                        <b>${usuario.nombre} ${usuario.apellido}</b>
+                        <span class="correo">${usuario.correo || "Sin correo registrado"}</span>
+                    </div>
+                    <span class="rol-actual-chip">${usuario.rol_nombre}</span>
+                </div>
+                <div class="roles-checkboxes">${checkboxes}</div>
+                <div class="usuario-rol-acciones">
+                    <span class="rol-guardado-ok" id="rolOk-${usuario.usuario_id}"></span>
+                    <button onclick="guardarRolesUsuario(${usuario.usuario_id})">Guardar roles</button>
+                </div>
+            </div>
+        `;
+    }).join("");
+}
+
+async function guardarRolesUsuario(usuarioId) {
+    const tarjeta = document.querySelector(`.usuario-rol-item[data-usuario-id="${usuarioId}"]`);
+    if (!tarjeta) return;
+
+    const seleccionados = Array.from(tarjeta.querySelectorAll(".roles-checkboxes input:checked"))
+        .map(input => parseInt(input.value, 10));
+
+    if (seleccionados.length === 0) {
+        alert("Selecciona al menos un rol para este usuario.");
+        return;
+    }
+
+    try {
+        const respuesta = await fetch(`/api/usuarios/${usuarioId}/roles`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ roles: seleccionados })
+        });
+        const datos = await respuesta.json();
+
+        if (!respuesta.ok || !datos.ok) {
+            throw new Error(datos.error || "No se pudo actualizar el rol");
+        }
+
+        const indicador = document.getElementById(`rolOk-${usuarioId}`);
+        indicador.innerText = "✔ Guardado";
+        setTimeout(() => { indicador.innerText = ""; }, 2500);
+
+        // Refrescar el chip del rol mas relevante y la cache local
+        const usuario = usuariosRolesCache.find(u => u.usuario_id === usuarioId);
+        if (usuario) {
+            const rolPrincipal = rolesCatalogo.find(r => r.rol_id === datos.rol_id);
+            usuario.rol_id = datos.rol_id;
+            usuario.rol_nombre = rolPrincipal ? rolPrincipal.nombre : "Sin rol";
+            usuario.roles = datos.roles.map(id => {
+                const rol = rolesCatalogo.find(r => r.rol_id === id);
+                return { rol_id: id, nombre: rol ? rol.nombre : "" };
+            });
+            tarjeta.querySelector(".rol-actual-chip").innerText = usuario.rol_nombre;
+        }
+    } catch (error) {
+        alert("Error al guardar roles: " + error.message);
+    }
+}
+
 // ===== OTRAS FUNCIONES =====
 function verInventario() {
     window.location.href = "raider.html";
@@ -310,6 +463,14 @@ function guardarProducto(){
 
     renderInventario();
 
+}
+
+async function cerrarSesionAdmin() {
+    try {
+        await fetch("/api/logout", { method: "POST", credentials: "include" });
+    } finally {
+        window.location.href = "/web/login/";
+    }
 }
 
 function verProveedores() {

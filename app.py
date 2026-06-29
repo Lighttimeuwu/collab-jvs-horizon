@@ -7,11 +7,11 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path:
     sys.path.append(BASE_DIR)
 
-from consultas.eventos import actualizar_evento_desde_booking, consultar_aforo, listar_eventos, crear_evento_completo
-from consultas.usuarios import crear_usuario, validar_login
+from consultas.eventos import actualizar_evento_desde_booking, consultar_aforo, listar_eventos, crear_evento_completo, publicar_evento, despublicar_evento, agregar_personal_tecnico, listar_personal_tecnico, eliminar_personal_tecnico
+from consultas.usuarios import crear_usuario, validar_login, listar_usuarios_con_roles, listar_roles_catalogo, asignar_roles_usuario
 from consultas.asientos import consultar_asientos_ocupados, registrar_asientos_ocupados
 from consultas.ventas import listar_historial_ventas, registrar_venta_web, listar_ventas_usuario
-from consultas.proveedores import listar_proveedores, consultar_proveedores_por_evento
+from consultas.proveedores import listar_proveedores, consultar_proveedores_por_evento, listar_proveedores_de_evento, asignar_proveedores_evento
 from consultas.riders import guardar_rider, obtener_rider, listar_riders, eliminar_rider, guardar_genero_rider
 
 
@@ -141,7 +141,7 @@ def static_proveedores(filename):
 
 def convertir_evento_a_json(evento):
     """Convierte la tupla de consultas/eventos.py en un objeto JSON claro."""
-    evento_id, nombre, fecha, descripcion, hora, lugar, imagen = evento
+    evento_id, nombre, fecha, descripcion, hora, lugar, imagen, publicado = evento
     return {
         "id": evento_id,
         "nombre": nombre,
@@ -152,6 +152,7 @@ def convertir_evento_a_json(evento):
         "imagen": imagen,
         "descripcion": descripcion,
         "Descripcion": descripcion,
+        "publicado": bool(publicado),
         "funciones": []
     }
 
@@ -183,7 +184,7 @@ def iniciar_sesion():
 
 @app.get("/api/sesion")
 def obtener_sesion():
-    """Devuelve el rol del usuario activo para que el frontend muestre/oculte elementos."""
+    """Devuelve los datos del usuario activo para que el frontend los muestre."""
     u = usuario_activo()
     if not u:
         return jsonify({"ok": False, "autenticado": False})
@@ -191,7 +192,12 @@ def obtener_sesion():
         "ok": True,
         "autenticado": True,
         "rol_id": u.get("rol_id"),
-        "es_admin": u.get("rol_id") in ROLES_ADMIN
+        "es_admin": u.get("rol_id") in ROLES_ADMIN,
+        "nombre": u.get("nombre"),
+        "apellido": u.get("apellido"),
+        "cedula": u.get("cedula"),
+        "correo": u.get("correo"),
+        "telefono": u.get("telefono")
     })
 
 
@@ -239,7 +245,8 @@ def obtener_proveedores_api():
     """Devuelve la lista de proveedores tecnicos registrados."""
     try:
         proveedores = listar_proveedores()
-        lista = [{"id": p[0], "nombre": p[1]} for p in proveedores]
+        # El JS guarda esto en catalogoProveedores y lo itera como [[id, nombre], ...]
+        lista = [[p[0], p[1]] for p in proveedores]
         return jsonify({"ok": True, "proveedores": lista})
     except Exception as error:
         return jsonify({"ok": False, "error": str(error)}), 500
@@ -275,9 +282,18 @@ def crear_evento_api():
 
 @app.get("/api/eventos")
 def obtener_eventos():
-    """Devuelve eventos reales leidos desde SQLite usando consultas/eventos.py."""
+    """
+    Devuelve eventos desde SQLite.
+    ?publicados=1  → solo los publicados (vista usuario)
+    sin parámetro  → todos (panel admin)
+    """
     try:
-        eventos = [convertir_evento_a_json(evento) for evento in listar_eventos()]
+        solo_publicados = request.args.get("publicados") == "1"
+        todos = [convertir_evento_a_json(evento) for evento in listar_eventos()]
+        if solo_publicados:
+            eventos = [e for e in todos if e.get("publicado")]
+        else:
+            eventos = todos
         eventos_por_nombre = {evento["nombre"]: evento for evento in eventos}
 
         for nombre, fecha, hora, aforo_total, lugar in consultar_aforo():
@@ -309,6 +325,135 @@ def actualizar_evento_api(evento_id):
         })
     except ValueError as error:
         return jsonify({"ok": False, "error": str(error)}), 400
+    except Exception as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
+
+
+# ─── Publicación a cartelera / proveedores / personal técnico (Proveedores) ──
+
+@app.put("/api/eventos/<int:evento_id>/imagen")
+def actualizar_imagen_evento_api(evento_id):
+    """
+    Recibe una imagen en base64 y la guarda en Evento.Imagen.
+    El booking la envía así:
+        { "imagen": "data:image/jpeg;base64,/9j/..." }
+    """
+    try:
+        datos  = request.get_json(silent=True) or {}
+        imagen = (datos.get("imagen") or "").strip()
+        if not imagen:
+            return jsonify({"ok": False, "error": "Falta el campo imagen"}), 400
+        from consultas.eventos import guardar_imagen_evento
+        guardar_imagen_evento(evento_id, imagen)
+        return jsonify({"ok": True, "mensaje": "Imagen guardada correctamente", "evento_id": evento_id})
+    except ValueError as error:
+        return jsonify({"ok": False, "error": str(error)}), 400
+    except Exception as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
+
+
+
+@app.put("/api/eventos/<int:evento_id>/publicar")
+def publicar_evento_api(evento_id):
+    """Publica un evento (lo hace visible en la cartelera de usuarios). Solo admin."""
+    if not es_admin():
+        return jsonify({"ok": False, "error": "No autorizado"}), 403
+    try:
+        evento = publicar_evento(evento_id)
+        return jsonify({"ok": True, "mensaje": "Evento publicado", "evento": convertir_evento_a_json(evento)})
+    except ValueError as error:
+        return jsonify({"ok": False, "error": str(error)}), 400
+    except Exception as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
+
+
+@app.put("/api/eventos/<int:evento_id>/despublicar")
+def despublicar_evento_api(evento_id):
+    """Retira un evento de la cartelera publica. Solo admin."""
+    if not es_admin():
+        return jsonify({"ok": False, "error": "No autorizado"}), 403
+    try:
+        evento = despublicar_evento(evento_id)
+        return jsonify({"ok": True, "mensaje": "Evento retirado de cartelera", "evento": convertir_evento_a_json(evento)})
+    except ValueError as error:
+        return jsonify({"ok": False, "error": str(error)}), 400
+    except Exception as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
+
+
+@app.get("/api/eventos/<int:evento_id>/proveedores")
+def obtener_proveedores_evento_api(evento_id):
+    """Devuelve los proveedores asignados a un evento puntual."""
+    if not es_admin():
+        return jsonify({"ok": False, "error": "No autorizado"}), 403
+    try:
+        proveedores = listar_proveedores_de_evento(evento_id)
+        return jsonify({"ok": True, "proveedores": proveedores})
+    except Exception as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
+
+
+@app.put("/api/eventos/<int:evento_id>/proveedores")
+def asignar_proveedores_evento_api(evento_id):
+    """
+    Reemplaza los proveedores asignados a un evento. Body esperado:
+    { "proveedores": [1, 6] }  ← lista de Proveedor_Id
+    """
+    if not es_admin():
+        return jsonify({"ok": False, "error": "No autorizado"}), 403
+    try:
+        datos = request.get_json(silent=True) or {}
+        proveedores = datos.get("proveedores")
+        if not isinstance(proveedores, list):
+            return jsonify({"ok": False, "error": "Debe enviar 'proveedores' como lista de Proveedor_Id"}), 400
+        resultado = asignar_proveedores_evento(evento_id, proveedores)
+        return jsonify({"ok": True, "mensaje": "Proveedores actualizados", **resultado})
+    except ValueError as error:
+        return jsonify({"ok": False, "error": str(error)}), 400
+    except Exception as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
+
+
+@app.get("/api/eventos/<int:evento_id>/personal")
+def obtener_personal_tecnico_api(evento_id):
+    """Devuelve el personal tecnico asignado a un evento."""
+    if not es_admin():
+        return jsonify({"ok": False, "error": "No autorizado"}), 403
+    try:
+        personal = listar_personal_tecnico(evento_id)
+        return jsonify({"ok": True, "personal": personal})
+    except Exception as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
+
+
+@app.post("/api/eventos/<int:evento_id>/personal")
+def agregar_personal_tecnico_api(evento_id):
+    """
+    Agrega una persona de personal tecnico a un evento. Body esperado:
+    { "nombre": "Carlos Ramirez", "funciones": ["Audio", "Iluminacion"] }
+    """
+    if not es_admin():
+        return jsonify({"ok": False, "error": "No autorizado"}), 403
+    try:
+        datos = request.get_json(silent=True) or {}
+        resultado = agregar_personal_tecnico(evento_id, datos.get("nombre"), datos.get("funciones"))
+        return jsonify({"ok": True, "mensaje": "Personal agregado", "personal": resultado}), 201
+    except ValueError as error:
+        return jsonify({"ok": False, "error": str(error)}), 400
+    except Exception as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
+
+
+@app.delete("/api/personal/<int:personal_id>")
+def eliminar_personal_tecnico_api(personal_id):
+    """Elimina una persona de personal tecnico por su Personal_Id."""
+    if not es_admin():
+        return jsonify({"ok": False, "error": "No autorizado"}), 403
+    try:
+        eliminado = eliminar_personal_tecnico(personal_id)
+        if not eliminado:
+            return jsonify({"ok": False, "error": "No existe esa persona de personal"}), 404
+        return jsonify({"ok": True, "mensaje": "Personal eliminado"})
     except Exception as error:
         return jsonify({"ok": False, "error": str(error)}), 500
 
@@ -361,6 +506,67 @@ def registrar_usuario():
             "mensaje": "Usuario registrado correctamente",
             "usuario": usuario
         }), 201
+    except ValueError as error:
+        return jsonify({"ok": False, "error": str(error)}), 400
+    except Exception as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
+
+
+# ─── Gestión de roles (panel administrador) ───────────────────────────────
+
+@app.get("/api/roles")
+def obtener_roles_api():
+    """Devuelve el catálogo de roles (Administrador, Coordinador, Vendedor, Cliente)."""
+    if not es_admin():
+        return jsonify({"ok": False, "error": "No autorizado"}), 403
+    try:
+        roles = listar_roles_catalogo()
+        return jsonify({"ok": True, "roles": roles})
+    except Exception as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
+
+
+@app.get("/api/usuarios/roles")
+def listar_usuarios_roles_api():
+    """Devuelve todos los usuarios con su(s) rol(es) actual(es), para el panel de roles."""
+    if not es_admin():
+        return jsonify({"ok": False, "error": "No autorizado"}), 403
+    try:
+        usuarios = listar_usuarios_con_roles()
+        return jsonify({"ok": True, "usuarios": usuarios})
+    except Exception as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
+
+
+@app.put("/api/usuarios/<int:usuario_id>/roles")
+def asignar_roles_usuario_api(usuario_id):
+    """
+    Reemplaza el conjunto de roles de un usuario. Body esperado:
+    { "roles": [1, 4] }  ← lista de Rol_Id (1=Admin, 2=Coordinador, 3=Vendedor, 4=Cliente)
+    Solo accesible para administradores.
+    """
+    if not es_admin():
+        return jsonify({"ok": False, "error": "No autorizado"}), 403
+    try:
+        datos = request.get_json(silent=True) or {}
+        roles = datos.get("roles")
+        if not isinstance(roles, list):
+            return jsonify({"ok": False, "error": "Debe enviar 'roles' como lista de Rol_Id"}), 400
+
+        resultado = asignar_roles_usuario(usuario_id, roles)
+
+        # Si el admin se quita su propio rol de administrador, refrescamos
+        # su sesion para que no quede con permisos desincronizados.
+        u = usuario_activo()
+        if u and u.get("id") == usuario_id:
+            u["rol_id"] = resultado["rol_id"]
+            session["usuario"] = u
+
+        return jsonify({
+            "ok": True,
+            "mensaje": "Roles actualizados correctamente",
+            **resultado
+        })
     except ValueError as error:
         return jsonify({"ok": False, "error": str(error)}), 400
     except Exception as error:

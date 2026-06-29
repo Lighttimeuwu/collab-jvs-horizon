@@ -390,3 +390,108 @@ input:focus {
     flex:none;
 
 }
+
+/* ===========================
+   GESTION DE ROLES
+=========================== */
+
+.helper-text{
+    color:#ccc;
+    font-size:13px;
+    margin-top:0;
+}
+
+#rolesBuscador{
+    width: 95%;
+}
+
+.usuario-rol-item{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    background:#202020;
+    border-radius:15px;
+    padding:15px;
+    margin-bottom:16px;
+    box-shadow:0px 4px 12px rgba(0,0,0,.3);
+}
+
+.usuario-rol-info{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:10px;
+}
+
+.usuario-rol-info b{
+    font-size:17px;
+    color:white;
+}
+
+.usuario-rol-info .correo{
+    color:#bbb;
+    font-size:13px;
+    display:block;
+}
+
+.rol-actual-chip{
+    background:linear-gradient(45deg, #7a0018, #ff0033);
+    color:white;
+    font-size:12px;
+    font-weight:bold;
+    border-radius:20px;
+    padding:5px 12px;
+    white-space:nowrap;
+}
+
+.roles-checkboxes{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+}
+
+.rol-checkbox-label{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    background:rgba(255,255,255,0.08);
+    border:1px solid rgba(122,0,24,0.5);
+    border-radius:8px;
+    padding:6px 10px;
+    cursor:pointer;
+    font-size:13px;
+}
+
+.rol-checkbox-label input{
+    width:auto;
+    margin:0;
+}
+
+.usuario-rol-acciones{
+    display:flex;
+    justify-content:flex-end;
+}
+
+.usuario-rol-acciones button{
+    padding:6px 16px;
+    font-size:13px;
+}
+
+.rol-guardado-ok{
+    color:#27ae60;
+    font-size:12px;
+    font-weight:bold;
+}
+
+
+.logout-btn{
+    display:block;
+    width:100%;
+    margin:15px 0 5px;
+    background:#444;
+    border:2px solid #7a0018;
+}
+
+.logout-btn:hover{
+    background:#7a0018;
+}

@@ -1,68 +1,30 @@
-let currentEvent = "";
+/* ========================
+   ESTADO
+   ======================== */
+
+let eventos = [];                  // cache de GET /api/eventos
+let catalogoProveedores = [];       // cache de GET /api/proveedores
+let currentEvent = null;            // Evento_Id (numero) del modulo de personal abierto
 let currentEventName = "";
-let currentProviderEvent = "";
-let data = JSON.parse(localStorage.getItem("proveedores_data")) || {};
+let currentProviderEvent = null;    // Evento_Id (numero) del editor de proveedores abierto
 
-const empresasProveedoras = [
-  "NovaTech Solutions",
-  "Grupo Altiora",
-  "Impulsa Global",
-  "Vertex Consulting",
-  "InnovaMax"
+const FUNCIONES_TECNICAS = [
+  "Bocinas y Subwoofers",
+  "Consola de mezcla",
+  "Microfonos",
+  "Luces LED y Wash",
+  "Cabezas moviles/Roboticas",
+  "Consola DMX",
+  "Maquina de humo",
+  "Pantallas LED",
+  "Escenario (Tarimas)",
+  "Tripodes y Stands",
+  "Cableado y conectividad"
 ];
 
-const eventosBase = [
-  { id: "Feid", nombre: "Feid", img: "imagenes/feid.jpg.jpeg", tipo: "Concierto", fechas: ["10/08/2026"] },
-  { id: "Karol G", nombre: "Karol G", img: "imagenes/karolg.jpeg.jpeg", tipo: "Concierto", fechas: ["12/08/2026"] },
-  { id: "Doom", nombre: "Doom", img: "imagenes/doom.jpg.jpg", tipo: "Festivales", fechas: ["15/08/2026"] },
-  { id: "Bad Bunny", nombre: "Bad Bunny", img: "imagenes/badbunny.jpg.jpeg", tipo: "Concierto", fechas: ["20/08/2026"] },
-  { id: "Basswell", nombre: "Basswell", img: "imagenes/baswell.jpg.jpg", tipo: "Pool Party", fechas: ["25/08/2026"] },
-  { id: "Romeo Santos", nombre: "Romeo Santos", img: "imagenes/romeo.jpg.jpg", tipo: "Concierto", fechas: ["30/08/2026"] }
-];
-
-function guardarDatos() {
-  localStorage.setItem("proveedores_data", JSON.stringify(data));
-}
-
-function obtenerLugarDesdeFechas(fechas = []) {
-  if (!Array.isArray(fechas) || !fechas.length) return "";
-  const partes = String(fechas[0]).split(" - ");
-  return partes.length > 1 ? partes.slice(1).join(" - ").trim() : "";
-}
-
-function obtenerEventosBooking() {
-  return (JSON.parse(localStorage.getItem("eventos_publicados")) || []).map(evento => ({
-    id: evento.id,
-    nombre: evento.nombre,
-    img: evento.imagen,
-    tipo: evento.tipo || "",
-    lugar: evento.lugar || obtenerLugarDesdeFechas(evento.fechas),
-    hora: evento.hora || "",
-    fechas: evento.fechas || []
-  }));
-}
-
-function obtenerTodosEventosProveedor() {
-  return eventosBase.concat(obtenerEventosBooking());
-}
-
-function esEventoBase(id) {
-  return eventosBase.some(evento => evento.id === id);
-}
-
-function asegurarEvento(eventId) {
-  if (!data[eventId]) {
-    data[eventId] = {
-      checks: {},
-      personal: [],
-      empresas: []
-    };
-  }
-
-  if (!data[eventId].checks) data[eventId].checks = {};
-  if (!Array.isArray(data[eventId].personal)) data[eventId].personal = [];
-  if (!Array.isArray(data[eventId].empresas)) data[eventId].empresas = [];
-}
+/* ========================
+   HELPERS
+   ======================== */
 
 function escaparHTML(valor = "") {
   return String(valor)
@@ -76,116 +38,95 @@ function escaparJS(valor = "") {
   return String(valor).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 }
 
-function renderEmpresasEvento(eventId) {
-  asegurarEvento(eventId);
-  const empresas = data[eventId].empresas;
+function buscarEvento(eventoId) {
+  return eventos.find(evento => evento.id === eventoId);
+}
 
-  if (!empresas.length) {
-    return `<p class="provider-empty">Sin proveedor asignado</p>`;
+async function peticionJSON(url, opciones = {}) {
+  const respuesta = await fetch(url, {
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    ...opciones
+  });
+  const datos = await respuesta.json();
+  if (!respuesta.ok || !datos.ok) {
+    throw new Error(datos.error || `Error en ${url}`);
   }
-
-  return `
-    <div class="provider-tags">
-      ${empresas.map(empresa => `<span>${escaparHTML(empresa)}</span>`).join("")}
-    </div>
-  `;
-}
-
-function eventoListoParaCartelera(eventId) {
-  asegurarEvento(eventId);
-  return data[eventId].empresas.length > 0 && data[eventId].personal.length > 0;
-}
-
-function eventoEnCartelera(id) {
-  if (data[id] && data[id].enCartelera === true) return true;
-  return (JSON.parse(localStorage.getItem("cartelera_usuario")) || [])
-    .some(evento => evento.id === id);
-}
-
-function renderEventList() {
-  const contenedor = document.getElementById("eventList");
-  const eventos = obtenerTodosEventosProveedor();
-
-  contenedor.innerHTML = eventos.map(evento => `
-    <div class="event" onclick="openModule('${escaparJS(evento.id)}', '${escaparJS(evento.nombre)}')">
-      <img src="${escaparHTML(evento.img)}" alt="${escaparHTML(evento.nombre)}">
-      <h3>${escaparHTML(evento.nombre)}</h3>
-      ${evento.tipo ? `<p class="event-type">${escaparHTML(evento.tipo)}</p>` : ""}
-      ${renderEmpresasEvento(evento.id)}
-      ${(esEventoBase(evento.id) || eventoEnCartelera(evento.id)) ? `<p class="sent-board-status">Enviado a cartelera</p>` : ""}
-      <div class="event-actions">
-        <button class="provider-card-btn" onclick="abrirEditorProveedores(event, '${escaparJS(evento.id)}', '${escaparJS(evento.nombre)}')">Agregar proveedor</button>
-      </div>
-    </div>
-  `).join("");
-}
-
-function mandarACartelera(eventId) {
-  asegurarEvento(eventId);
-
-  if (esEventoBase(eventId)) {
-    alert("Este evento ya esta enviado a cartelera.");
-    return;
-  }
-
-  if (!eventoListoParaCartelera(eventId)) {
-    alert("Primero asigna al menos un proveedor y una persona de personal.");
-    return;
-  }
-
-  const evento = obtenerTodosEventosProveedor().find(item => item.id === eventId);
-  if (!evento) return;
-
-  const cartelera = JSON.parse(localStorage.getItem("cartelera_usuario")) || [];
-  const publicado = {
-    id: evento.id,
-    nombre: evento.nombre,
-    img: evento.img,
-    tipo: evento.tipo || "Evento",
-    lugar: evento.lugar || obtenerLugarDesdeFechas(evento.fechas),
-    hora: evento.hora || "",
-    fechas: evento.fechas || [],
-    empresas: data[eventId].empresas,
-    personal: data[eventId].personal,
-    enCartelera: true
-  };
-
-  const actualizada = cartelera.filter(item => item.id !== eventId);
-  actualizada.push(publicado);
-  data[eventId].enCartelera = true;
-  guardarDatos();
-  localStorage.setItem("cartelera_usuario", JSON.stringify(actualizada));
-
-  // ── CORRECCIÓN: marcar enCartelera:true en eventos_publicados ──────────────
-  // script.js (vista del usuario) renderiza desde 'eventos_publicados', NO desde
-  // 'cartelera_usuario'. Sin esta actualización el evento nunca aparece visible.
-  const eventosPublicados = JSON.parse(localStorage.getItem("eventos_publicados")) || [];
-  const idxPublicado = eventosPublicados.findIndex(ev => ev.id === eventId);
-  if (idxPublicado >= 0) {
-    eventosPublicados[idxPublicado].enCartelera = true;
-    localStorage.setItem("eventos_publicados", JSON.stringify(eventosPublicados));
-  }
-  // ──────────────────────────────────────────────────────────────────────────
-
-  alert("Evento enviado a la cartelera de usuario.");
-  renderEventList();
-}
-
-function mandarACarteleraDesdeModulo() {
-  mandarACartelera(currentEvent);
-  render();
+  return datos;
 }
 
 /* ========================
-   ABRIR MODULO
+   CARGA INICIAL
    ======================== */
 
-function openModule(eventId, eventName = eventId) {
-  currentEvent = eventId;
-  currentEventName = eventName;
-  asegurarEvento(eventId);
+async function cargarDatosIniciales() {
+  try {
+    const [datosEventos, datosProveedores] = await Promise.all([
+      peticionJSON("/api/eventos"),
+      peticionJSON("/api/proveedores")
+    ]);
+    eventos = datosEventos.eventos || [];
+    catalogoProveedores = datosProveedores.proveedores || [];
+    renderEventList();
+  } catch (error) {
+    const contenedor = document.getElementById("eventList");
+    contenedor.innerHTML = `<p class="provider-empty">No se pudieron cargar los eventos: ${escaparHTML(error.message)}</p>`;
+  }
+}
 
-  document.getElementById("eventTitle").innerText = "Evento: " + eventName;
+/* ========================
+   LISTA DE EVENTOS
+   ======================== */
+
+function renderEventList() {
+  const contenedor = document.getElementById("eventList");
+
+  if (!eventos.length) {
+    contenedor.innerHTML = `<p class="provider-empty">Todavia no hay eventos creados desde Booking.</p>`;
+    return;
+  }
+
+  contenedor.innerHTML = eventos.map(evento => `
+    <div class="event" onclick="openModule(${evento.id}, '${escaparJS(evento.nombre)}')">
+      <img src="${escaparHTML(evento.imagen || '')}" alt="${escaparHTML(evento.nombre)}">
+      <h3>${escaparHTML(evento.nombre)}</h3>
+      ${evento.lugar ? `<p class="event-place">${escaparHTML(evento.lugar)}</p>` : ""}
+      <div id="empresas-evento-${evento.id}" class="provider-tags-wrapper">Cargando proveedores...</div>
+      ${evento.publicado
+        ? `<p class="sent-board-status">Publicado en cartelera</p>`
+        : ""}
+      <div class="event-actions">
+        <button class="provider-card-btn" onclick="abrirEditorProveedores(event, ${evento.id}, '${escaparJS(evento.nombre)}')">Asignar proveedores</button>
+      </div>
+    </div>
+  `).join("");
+
+  eventos.forEach(evento => cargarYRenderEmpresasEvento(evento.id));
+}
+
+async function cargarYRenderEmpresasEvento(eventoId) {
+  const contenedor = document.getElementById(`empresas-evento-${eventoId}`);
+  if (!contenedor) return;
+  try {
+    const datos = await peticionJSON(`/api/eventos/${eventoId}/proveedores`);
+    const proveedores = datos.proveedores || [];
+    contenedor.innerHTML = proveedores.length
+      ? `<div class="provider-tags">${proveedores.map(p => `<span>${escaparHTML(p.nombre)}</span>`).join("")}</div>`
+      : `<p class="provider-empty">Sin proveedor asignado</p>`;
+  } catch (error) {
+    contenedor.innerHTML = `<p class="provider-empty">No se pudo cargar</p>`;
+  }
+}
+
+/* ========================
+   MODULO: PERSONAL TECNICO
+   ======================== */
+
+function openModule(eventoId, eventoNombre) {
+  currentEvent = eventoId;
+  currentEventName = eventoNombre;
+
+  document.getElementById("eventTitle").innerText = "Evento: " + eventoNombre;
   document.getElementById("module").style.display = "block";
   document.getElementById("providerModule").style.display = "none";
   document.getElementById("eventList").style.display = "none";
@@ -194,37 +135,185 @@ function openModule(eventId, eventName = eventId) {
   render();
 }
 
-function abrirEditorProveedores(eventoClick, eventId, eventName) {
-  eventoClick.stopPropagation();
-  currentProviderEvent = eventId;
-  asegurarEvento(eventId);
+async function render() {
+  const evento = buscarEvento(currentEvent);
+  const publicado = evento ? evento.publicado : false;
 
-  document.getElementById("providerTitle").innerText = "Proveedores: " + eventName;
-  document.getElementById("eventList").style.display = "none";
-  document.getElementById("adminReturnArea").style.display = "none";
-  document.getElementById("module").style.display = "none";
-  document.getElementById("providerModule").style.display = "block";
-  renderOpcionesEmpresas();
+  document.getElementById("content").innerHTML = `
+    <div class="section">
+      <h4>Personal Tecnico</h4>
+      <p class="helper-text">Selecciona las funciones de cada persona y agrega su nombre.</p>
+      <div class="roles-checkboxes" id="funcionesCheckboxes">
+        ${FUNCIONES_TECNICAS.map(funcion => `
+          <label class="rol-checkbox-label">
+            <input type="checkbox" value="${escaparHTML(funcion)}">
+            ${escaparHTML(funcion)}
+          </label>
+        `).join("")}
+      </div>
+      <div id="personalList">Cargando personal...</div>
+      <input type="text" id="newPerson" placeholder="Nombre de la persona">
+      <button onclick="addPerson()">Agregar</button>
+    </div>
+
+    <div class="module-board-actions">
+      ${publicado
+        ? `<p class="sent-board-status in-module">Publicado en cartelera</p>`
+        : `<button class="send-board-btn" id="btnPublicar" onclick="publicarEventoActual()">Publicar en cartelera</button>`}
+    </div>
+  `;
+
+  await cargarYRenderPersonal();
 }
 
-function renderOpcionesEmpresas() {
-  const seleccionadas = data[currentProviderEvent].empresas;
-  document.getElementById("providerOptions").innerHTML = empresasProveedoras.map(empresa => {
-    const checked = seleccionadas.includes(empresa) ? "checked" : "";
+async function cargarYRenderPersonal() {
+  const contenedor = document.getElementById("personalList");
+  if (!contenedor) return;
+  try {
+    const datos = await peticionJSON(`/api/eventos/${currentEvent}/personal`);
+    renderPersonal(datos.personal || []);
+  } catch (error) {
+    contenedor.innerHTML = `<p class="empty-personal">No se pudo cargar el personal.</p>`;
+  }
+}
+
+function renderPersonal(personal) {
+  const contenedor = document.getElementById("personalList");
+  if (!contenedor) return;
+
+  if (!personal.length) {
+    contenedor.innerHTML = `<p class="empty-personal">No hay personal asignado.</p>`;
+    return;
+  }
+
+  contenedor.innerHTML = personal.map(persona => {
+    const funciones = persona.funciones && persona.funciones.length
+      ? persona.funciones.map(f => `<span>${escaparHTML(f)}</span>`).join("")
+      : `<em>Sin funciones seleccionadas</em>`;
+
     return `
-      <label class="provider-option">
-        <input type="checkbox" value="${escaparHTML(empresa)}" ${checked}>
-        <span>${escaparHTML(empresa)}</span>
-      </label>
+      <div class="personal-item">
+        <div>
+          <b>${escaparHTML(persona.nombre)}</b>
+          <div class="funciones-personal">${funciones}</div>
+        </div>
+        <button onclick="removePerson(${persona.personal_id})">X</button>
+      </div>
     `;
   }).join("");
 }
 
-function guardarEmpresasEvento() {
-  data[currentProviderEvent].empresas = Array.from(document.querySelectorAll("#providerOptions input:checked"))
-    .map(input => input.value);
-  guardarDatos();
-  cerrarEditorProveedores();
+async function addPerson() {
+  const input = document.getElementById("newPerson");
+  const nombre = input.value.trim();
+  if (!nombre) return;
+
+  const funciones = Array.from(document.querySelectorAll("#funcionesCheckboxes input:checked"))
+    .map(el => el.value);
+
+  try {
+    await peticionJSON(`/api/eventos/${currentEvent}/personal`, {
+      method: "POST",
+      body: JSON.stringify({ nombre, funciones })
+    });
+    input.value = "";
+    document.querySelectorAll("#funcionesCheckboxes input:checked").forEach(el => { el.checked = false; });
+    await cargarYRenderPersonal();
+  } catch (error) {
+    alert("No se pudo agregar el personal: " + error.message);
+  }
+}
+
+async function removePerson(personalId) {
+  try {
+    await peticionJSON(`/api/personal/${personalId}`, { method: "DELETE" });
+    await cargarYRenderPersonal();
+  } catch (error) {
+    alert("No se pudo eliminar: " + error.message);
+  }
+}
+
+/* ========================
+   PUBLICAR A CARTELERA
+   ======================== */
+
+async function publicarEventoActual() {
+  try {
+    const datosProveedores = await peticionJSON(`/api/eventos/${currentEvent}/proveedores`);
+    const datosPersonal = await peticionJSON(`/api/eventos/${currentEvent}/personal`);
+
+    if (!(datosProveedores.proveedores || []).length) {
+      alert("Primero asigna al menos un proveedor a este evento.");
+      return;
+    }
+    if (!(datosPersonal.personal || []).length) {
+      alert("Primero agrega al menos una persona de personal tecnico.");
+      return;
+    }
+
+    await peticionJSON(`/api/eventos/${currentEvent}/publicar`, { method: "PUT" });
+    alert("Evento publicado en la cartelera de usuarios.");
+
+    const evento = buscarEvento(currentEvent);
+    if (evento) evento.publicado = true;
+    await render();
+  } catch (error) {
+    alert("No se pudo publicar el evento: " + error.message);
+  }
+}
+
+/* ========================
+   MODULO: PROVEEDORES
+   ======================== */
+
+function abrirEditorProveedores(eventoClick, eventoId, eventoNombre) {
+  eventoClick.stopPropagation();
+  currentProviderEvent = eventoId;
+
+  document.getElementById("providerTitle").innerText = "Proveedores: " + eventoNombre;
+  document.getElementById("eventList").style.display = "none";
+  document.getElementById("adminReturnArea").style.display = "none";
+  document.getElementById("module").style.display = "none";
+  document.getElementById("providerModule").style.display = "block";
+
+  renderOpcionesEmpresas();
+}
+
+async function renderOpcionesEmpresas() {
+  const contenedor = document.getElementById("providerOptions");
+  contenedor.innerHTML = "Cargando proveedores...";
+
+  try {
+    const datos = await peticionJSON(`/api/eventos/${currentProviderEvent}/proveedores`);
+    const seleccionados = new Set((datos.proveedores || []).map(p => p.proveedor_id));
+
+    contenedor.innerHTML = catalogoProveedores.map(([id, nombre]) => {
+      const checked = seleccionados.has(id) ? "checked" : "";
+      return `
+        <label class="provider-option">
+          <input type="checkbox" value="${id}" ${checked}>
+          <span>${escaparHTML(nombre)}</span>
+        </label>
+      `;
+    }).join("");
+  } catch (error) {
+    contenedor.innerHTML = `<p class="provider-empty">No se pudo cargar: ${escaparHTML(error.message)}</p>`;
+  }
+}
+
+async function guardarEmpresasEvento() {
+  const proveedorIds = Array.from(document.querySelectorAll("#providerOptions input:checked"))
+    .map(input => parseInt(input.value, 10));
+
+  try {
+    await peticionJSON(`/api/eventos/${currentProviderEvent}/proveedores`, {
+      method: "PUT",
+      body: JSON.stringify({ proveedores: proveedorIds })
+    });
+    cerrarEditorProveedores();
+  } catch (error) {
+    alert("No se pudo guardar: " + error.message);
+  }
 }
 
 function cerrarEditorProveedores() {
@@ -235,137 +324,8 @@ function cerrarEditorProveedores() {
 }
 
 /* ========================
-   RENDERIZAR CONTENIDO
+   CANCELAR / NAVEGACION
    ======================== */
-
-function render() {
-  let d = data[currentEvent];
-  const listoCartelera = eventoListoParaCartelera(currentEvent);
-  const enviadoCartelera = esEventoBase(currentEvent) || eventoEnCartelera(currentEvent);
-
-  document.getElementById("content").innerHTML = `
-    <div class="section">
-      <h4>Audio</h4>
-      ${checkbox("Bocinas y Subwoofers")}
-      ${checkbox("Consola de mezcla")}
-      ${checkbox("Microfonos")}
-    </div>
-
-    <div class="section">
-      <h4>Iluminacion Escenica</h4>
-      ${checkbox("Luces LED y Wash")}
-      ${checkbox("Cabezas moviles/Roboticas")}
-      ${checkbox("Consola DMX")}
-      ${checkbox("Maquina de humo")}
-    </div>
-
-    <div class="section">
-      <h4>Video y Visuales</h4>
-      ${checkbox("Pantallas LED")}
-    </div>
-
-    <div class="section">
-      <h4>Estructura y Escenario</h4>
-      ${checkbox("Escenario (Tarimas)")}
-      ${checkbox("Tripodes y Stands")}
-      ${checkbox("Cableado y conectividad")}
-    </div>
-
-    <div class="section">
-      <h4>Personal Tecnico</h4>
-      <p class="helper-text">Selecciona funciones arriba y luego agrega el nombre del personal.</p>
-      <div id="personalList">
-        ${renderPersonal(d.personal)}
-      </div>
-      <input type="text" id="newPerson" placeholder="Agregar personal">
-      <button onclick="addPerson()">Agregar</button>
-    </div>
-
-    <div class="module-board-actions">
-      ${enviadoCartelera
-        ? `<p class="sent-board-status in-module">Enviado a cartelera</p>`
-        : `<button class="send-board-btn" onclick="mandarACarteleraDesdeModulo()" ${listoCartelera ? "" : "disabled"}>Mandar a cartelera</button>`}
-    </div>
-  `;
-}
-
-function renderPersonal(personal) {
-  if (!personal.length) return `<p class="empty-personal">No hay personal asignado.</p>`;
-
-  return personal.map((persona, index) => {
-    const normalizada = typeof persona === "string"
-      ? { nombre: persona, funciones: [] }
-      : persona;
-    const funciones = normalizada.funciones && normalizada.funciones.length
-      ? normalizada.funciones.map(f => `<span>${f}</span>`).join("")
-      : `<em>Sin funciones seleccionadas</em>`;
-
-    return `
-      <div class="personal-item">
-        <div>
-          <b>${normalizada.nombre}</b>
-          <div class="funciones-personal">${funciones}</div>
-        </div>
-        <button onclick="removePerson(${index})">X</button>
-      </div>
-    `;
-  }).join("");
-}
-
-/* ========================
-   CHECKBOX
-   ======================== */
-
-function checkbox(name) {
-  let checked = data[currentEvent].checks[name] ? "checked" : "";
-  return `<label><input type="checkbox" ${checked} onchange="toggle('${name}', this.checked)"> ${name}</label><br>`;
-}
-
-function toggle(name, value) {
-  data[currentEvent].checks[name] = value;
-  guardarDatos();
-}
-
-function obtenerFuncionesSeleccionadas() {
-  return Object.entries(data[currentEvent].checks)
-    .filter(([, activo]) => activo)
-    .map(([nombre]) => nombre);
-}
-
-/* ========================
-   PERSONAL TECNICO
-   ======================== */
-
-function addPerson() {
-  let input = document.getElementById("newPerson");
-  const nombre = input.value.trim();
-  if (nombre === "") return;
-
-  data[currentEvent].personal.push({
-    nombre,
-    funciones: obtenerFuncionesSeleccionadas()
-  });
-
-  input.value = "";
-  guardarDatos();
-  render();
-}
-
-function removePerson(index) {
-  data[currentEvent].personal.splice(index, 1);
-  guardarDatos();
-  render();
-}
-
-/* ========================
-   GUARDAR / CANCELAR
-   ======================== */
-
-function save() {
-  guardarDatos();
-  alert("Guardado exitosamente");
-  cancel();
-}
 
 function cancel() {
   document.getElementById("module").style.display = "none";
@@ -375,21 +335,8 @@ function cancel() {
   renderEventList();
 }
 
-
-async function cerrarSesion() {
-    localStorage.removeItem("usuarioLogueado");
-    localStorage.removeItem("admin_sesion_activa");
-    try {
-        await fetch("/api/logout", { method: "POST", credentials: "include" });
-    } catch (e) {}
-    window.location.href = "/web/login/";
-}
-
 function volverAdministrador() {
-  window.location.href = '/web/admin/';
+  window.location.href = "/web/admin/";
 }
 
-window.addEventListener("DOMContentLoaded", renderEventList);
-window.addEventListener("storage", function(event) {
-  if (event.key === "eventos_publicados" || event.key === "cartelera_usuario") renderEventList();
-});
+window.addEventListener("DOMContentLoaded", cargarDatosIniciales);

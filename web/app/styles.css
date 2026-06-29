@@ -1443,3 +1443,10 @@ input[readonly] {
   cursor: not-allowed;
   border-style: dashed !important;
 }
+.bienvenida-usuario {
+  text-align: center;
+  color: #ffbf00;
+  font-weight: bold;
+  font-size: 15px;
+  margin: 0 0 12px;
+}

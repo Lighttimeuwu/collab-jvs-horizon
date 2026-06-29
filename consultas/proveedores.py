@@ -51,3 +51,48 @@ def consultar_proveedores_por_evento():
         return []
     finally:
         conexion.close()
+
+
+def listar_proveedores_de_evento(evento_id):
+    """Devuelve los proveedores (id + nombre) asignados a un evento puntual."""
+    conexion = conectar()
+    cursor = conexion.cursor()
+    try:
+        cursor.execute("""
+            SELECT P.Proveedor_Id, P.Nombre
+            FROM Evento_Proveedor EP
+            JOIN Proveedor P ON EP.Proveedor_Id = P.Proveedor_Id
+            WHERE EP.Evento_Id = ?
+            ORDER BY P.Nombre
+        """, (evento_id,))
+        return [{"proveedor_id": fila[0], "nombre": fila[1]} for fila in cursor.fetchall()]
+    finally:
+        conexion.close()
+
+
+def asignar_proveedores_evento(evento_id, proveedor_ids):
+    """
+    Reemplaza por completo el conjunto de proveedores asignados a un evento
+    con la lista de Proveedor_Id dada.
+    """
+    proveedor_ids = sorted({int(p) for p in (proveedor_ids or [])})
+
+    conexion = conectar()
+    cursor = conexion.cursor()
+    try:
+        cursor.execute("SELECT Evento_Id FROM Evento WHERE Evento_Id = ?", (evento_id,))
+        if not cursor.fetchone():
+            raise ValueError("El evento no existe")
+
+        cursor.execute("DELETE FROM Evento_Proveedor WHERE Evento_Id = ?", (evento_id,))
+        cursor.executemany(
+            "INSERT OR IGNORE INTO Evento_Proveedor (Evento_Id, Proveedor_Id) VALUES (?, ?)",
+            [(evento_id, proveedor_id) for proveedor_id in proveedor_ids]
+        )
+        conexion.commit()
+        return {"evento_id": evento_id, "proveedores": proveedor_ids}
+    except Exception:
+        conexion.rollback()
+        raise
+    finally:
+        conexion.close()

@@ -5,3 +5,11 @@ ya se levanta en flask online con el siguiente link http://127.0.0.1:5000/web/lo
 no aparecen los riders publicados desde el modulo
 
 login todo feo
+
+Listo. En la cuenta nueva:
+
+Sube este contexto_proyecto.md como primer mensaje, junto con los archivos clave que ya tienes descargados (app.py, eventos.py, proveedores.py, usuarios.py, boleteria.db, y los index.html/script.js/styles.css de cada módulo).
+Dile algo como: "Aquí está el contexto de un proyecto que vengo desarrollando con Claude en otra cuenta. Continúa desde donde indica el documento."
+
+Con eso, Claude en la cuenta nueva tendrá todo lo necesario para retomar sin que tengas que re-explicar la arquitectura completa ni repetir las decisiones que ya tomamos juntos (roles, sesión, anti-caché, etc.).
+Un detalle práctico: asegúrate de tener todos los archivos descargados desde el botón de descarga de cada uno (no solo este resumen) — son la fuente de verdad real del proyecto, el resumen solo da el contexto narrativo.
