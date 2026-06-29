@@ -2,6 +2,7 @@ import os
 import sys
 
 from flask import Flask, jsonify, request, session, redirect, send_from_directory
+from utilidades.conexion import conectar
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path:
@@ -151,6 +152,97 @@ def static_proveedores(filename):
     if not es_admin():
         return redirect("/web/login/")
     return send_from_directory(PROVEEDORES_DIR, filename)
+
+from utilidades.conexion import conectar # Asegúrate de tener esta importación en app.py
+
+@app.route("/api/usuarios", methods=["GET"])
+def obtener_correos_usuarios_api():
+    """
+    Endpoint de respaldo para listar correos de usuarios (utilizado en validaciones de recuperación/registro).
+    """
+    conexion = conectar()
+    cursor = conexion.cursor()
+    try:
+        cursor.execute("SELECT Correo FROM Usuario")
+        filas = cursor.fetchall()
+        # Formateamos la salida como una lista de diccionarios que Javascript pueda leer con .json()
+        correos = [{"correo": fila[0]} for fila in filas]
+        return jsonify(correos)
+    except Exception as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
+    finally:
+        conexion.close()
+
+@app.route("/api/usuarios", methods=["GET"])
+def listar_usuarios_api():
+    """
+    Endpoint de respaldo para listar usuarios y permitir validaciones en el frontend.
+    """
+    conexion = conectar()
+    cursor = conexion.cursor()
+    try:
+        # Llamamos a tu función que lista usuarios (puedes ajustar el nombre según tu archivo usuarios.py)
+        cursor.execute("SELECT Usuario_Id, Correo FROM Usuario")
+        filas = cursor.fetchall()
+        
+        # Convertimos a formato de lista de diccionarios
+        usuarios = [{"usuario_id": fila[0], "correo": fila[1]} for fila in filas]
+        return jsonify(usuarios)
+    except Exception as error:
+        return jsonify({"error": str(error)}), 500
+    finally:
+        conexion.close()
+
+
+@app.route("/api/usuarios", methods=["GET", "POST", "PUT"])
+def manejar_usuarios_api():
+    """
+    Punto de entrada para gestionar usuarios según el método HTTP.
+    """
+    if request.method == "GET":
+        # Lógica para listar usuarios (puedes llamar a tu función correspondiente)
+        return jsonify({"ok": True, "usuarios": []})
+        
+    elif request.method == "POST":
+        # Lógica para registrar un usuario nuevo
+        datos = request.get_json()
+        # ... tu lógica de creación ...
+        return jsonify({"ok": True, "mensaje": "Usuario creado"})
+
+    elif request.method == "PUT":
+        # Lógica para actualizar el usuario que pasaste al principio
+        datos = request.get_json()
+        # ... tu lógica de actualización ...
+        return jsonify({"ok": True, "mensaje": "Usuario actualizado"})
+
+@app.put("/api/usuarios/<int:usuario_id>")
+def modificar_usuario_api(usuario_id):
+    """
+    Modifica la información de un usuario en la DB.
+    """
+    datos = request.get_json()
+    
+    conexion = conectar()
+    cursor = conexion.cursor()
+    try:
+        exito = actualizar_usuario(
+            cursor, 
+            usuario_id, 
+            datos.get("nombre"), 
+            datos.get("apellido"), 
+            datos.get("correo"), 
+            datos.get("telefono"), 
+            datos.get("ciudad")
+        )
+        if not exito:
+            return jsonify({"ok": False, "error": "Usuario no encontrado"}), 404
+        
+        conexion.commit()
+        return jsonify({"ok": True, "mensaje": "Usuario actualizado correctamente"})
+    except Exception as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
+    finally:
+        conexion.close()
 
 
 def convertir_evento_a_json(evento):
@@ -716,6 +808,46 @@ def eliminar_evento_api(evento_id):
         return jsonify({"ok": True, "mensaje": "Evento eliminado"})
     except Exception as error:
         return jsonify({"ok": False, "error": str(error)}), 500
+
+# ==========================================
+# ENDPOINT DE RECUPERACIÓN DE CONTRASEÑA
+# ==========================================
+
+@app.route("/api/usuarios/contrasena", methods=["PUT"])
+def actualizar_pass_recuperacion():
+    """
+    Modifica la contraseña del usuario en la base de datos al recuperar contraseña.
+    """
+    datos = request.get_json()
+    correo = datos.get("correo")
+    nueva_pass = datos.get("nueva_contrasena")
+
+    # Verificamos que los datos no estén vacíos
+    if not correo or not nueva_pass:
+        return jsonify({"ok": False, "error": "Faltan datos (correo o contraseña)"}), 400
+
+    conexion = conectar()
+    cursor = conexion.cursor()
+    try:
+        # Actualizamos la contraseña en la tabla Usuario filtrando por correo
+        cursor.execute("""
+            UPDATE Usuario
+            SET Contrasena = ?
+            WHERE Correo = ?
+        """, (nueva_pass, correo))
+        
+        # Si no se afectó ninguna fila, el correo no existe en la DB
+        if cursor.rowcount == 0:
+            return jsonify({"ok": False, "error": "Usuario no encontrado con ese correo"}), 404
+            
+        conexion.commit()
+        return jsonify({"ok": True, "mensaje": "Contraseña actualizada correctamente"})
+        
+    except Exception as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
+        
+    finally:
+        conexion.close()
 
 
 if __name__ == "__main__":

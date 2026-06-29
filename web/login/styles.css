@@ -1898,3 +1898,50 @@ input[readonly] {
   color: #fff;
   box-shadow: 0 0 18px rgba(255, 0, 51, 0.55);
 }
+
+
+/* ==========================
+   ESTILOS FLUJO RECUPERACIÓN
+   ========================== */
+#recuperar input,
+#validarCodigo input,
+#nuevaPass input,
+#nuevaPass .pass-wrapper {
+  width: min(360px, 92vw);
+  padding: 12px;
+  margin: 8px 0;
+  box-sizing: border-box;
+  border-radius: 8px;
+  border: 1px solid #555;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 15px;
+}
+
+#recuperar > button,
+#validarCodigo > button,
+#nuevaPass > button {
+  width: min(360px, 92vw);
+  padding: 13px 18px;
+  margin-top: 15px;
+  font-family: inherit;
+  font-weight: bold;
+  font-size: 15px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #fff;
+  background: linear-gradient(135deg, #7a0018 0%, #ff0033 100%);
+  border: 1px solid #ff0033;
+  border-radius: 10px;
+  cursor: pointer;
+  box-shadow: 0 0 14px rgba(255, 0, 51, 0.6), inset 0 0 10px rgba(0, 0, 0, 0.35);
+  transition: 0.3s;
+}
+
+#recuperar > button:hover,
+#validarCodigo > button:hover,
+#nuevaPass > button:hover {
+  background: linear-gradient(135deg, #ff0033 0%, #990020 100%);
+  box-shadow: 0 0 20px rgba(255, 0, 51, 0.9);
+  transform: scale(1.02);
+}

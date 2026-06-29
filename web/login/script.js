@@ -150,20 +150,30 @@ async function registrarUsuario() {
       throw new Error(resultado.error || "No se pudo registrar el usuario.");
     }
 
-    mensaje.innerText = "Usuario registrado correctamente.";
+    // Indicamos éxito de creación en el mensajito
+    mensaje.innerText = "¡Usuario creado satisfactoriamente!";
     mensaje.className = "registro-mensaje exito";
 
+    // Limpiamos los campos
     document.getElementById("registroNombre").value   = "";
     document.getElementById("registroApellido").value = "";
     document.getElementById("registroCorreo").value   = "";
     document.getElementById("registroCedula").value   = "";
     document.getElementById("registroTelefono").value = "";
     document.getElementById("pass").value             = "";
+    
+    // Esperamos 2 segundos para que el usuario visualice el mensaje y luego redirigimos al login
+    setTimeout(() => {
+      mostrar('login');
+      mensaje.innerText = ""; // Limpiamos el mensaje para cuando vuelvan a abrir el formulario
+    }, 2000);
+
   } catch (error) {
     mensaje.innerText = error.message || "No se pudo conectar con el servidor.";
     mensaje.className = "registro-mensaje error";
   }
 }
+
 
 /* ========================
    OJO CONTRASEÑA
@@ -201,3 +211,135 @@ function ciudades() {
 }
 
 ciudades();
+
+
+/* ==================================================
+   LÓGICA DE RECUPERACIÓN DE CONTRASEÑA (PROTOTIPO)
+   ================================================== */
+
+let correoEnRecuperacion = "";
+
+async function enviarCodigoRecuperacion() {
+  const correo = document.getElementById("recuperarCorreo").value.trim();
+  const mensaje = document.getElementById("recuperarMensaje");
+
+  if (!correo) {
+    mensaje.innerText = "Por favor ingresa un correo electrónico.";
+    mensaje.className = "registro-mensaje error";
+    return;
+  }
+
+  try {
+    mensaje.innerText = "Verificando correo...";
+    mensaje.className = "registro-mensaje";
+
+    // 1. Consultamos la lista de usuarios para verificar si existe en BD
+    const respuesta = await fetch(API_USUARIOS_URL);
+    const usuarios = await respuesta.json();
+    
+    // Asumimos que la API devuelve un array o un objeto con usuarios
+    const listaUsuarios = Array.isArray(usuarios) ? usuarios : (usuarios.usuarios || []);
+    const usuarioEncontrado = listaUsuarios.find(u => u.correo === correo || u.Correo === correo);
+
+    if (!usuarioEncontrado) {
+      throw new Error("El correo ingresado no se encuentra registrado.");
+    }
+
+    // 2. Guardamos el correo y pasamos a la pantalla de validación de código
+    correoEnRecuperacion = correo;
+    alert("Código simulado generado para pruebas: 123456");
+    
+    document.getElementById("recuperarCorreo").value = "";
+    mensaje.innerText = "";
+    mostrar('validarCodigo');
+
+  } catch (error) {
+    mensaje.innerText = error.message;
+    mensaje.className = "registro-mensaje error";
+  }
+}
+
+function verificarCodigo() {
+  const codigo = document.getElementById("codigoIngresado").value.trim();
+  const mensaje = document.getElementById("codigoMensaje");
+
+  // Usamos "123456" simulando la clave de recuperación del correo
+  if (codigo === "123456") {
+    document.getElementById("codigoIngresado").value = "";
+    mensaje.innerText = "";
+    mostrar('nuevaPass');
+  } else {
+    mensaje.innerText = "Código incorrecto. En un entorno real, verifica tu bandeja.";
+    mensaje.className = "registro-mensaje error";
+  }
+}
+
+async function actualizarContrasena() {
+  const nuevaPass = document.getElementById("nuevaContrasena").value.trim();
+  const confirmaPass = document.getElementById("confirmaContrasena").value.trim();
+  const mensaje = document.getElementById("nuevaPassMensaje");
+
+  if (!nuevaPass || !confirmaPass) {
+    mensaje.innerText = "Por favor, llena ambos campos.";
+    mensaje.className = "registro-mensaje error";
+    return;
+  }
+
+  if (nuevaPass !== confirmaPass) {
+    mensaje.innerText = "Las contraseñas no coinciden.";
+    mensaje.className = "registro-mensaje error";
+    return;
+  }
+
+  try {
+    mensaje.innerText = "Actualizando contraseña en base de datos...";
+    mensaje.className = "registro-mensaje";
+
+    // Realizamos la petición PUT a la API
+    const respuesta = await fetch("/api/usuarios/contrasena", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ 
+        correo: correoEnRecuperacion, 
+        nueva_contrasena: nuevaPass 
+      })
+    });
+
+    const resultado = await respuesta.json();
+    if (!resultado.ok) {
+      throw new Error(resultado.error || "No se pudo actualizar la contraseña.");
+    }
+    
+    alert("¡Contraseña actualizada correctamente en la base de datos!");
+    
+    document.getElementById("nuevaContrasena").value = "";
+    document.getElementById("confirmaContrasena").value = "";
+    mensaje.innerText = "";
+    correoEnRecuperacion = "";
+    
+    mostrar('login');
+
+  } catch (error) {
+    mensaje.innerText = error.message || "No se pudo actualizar la contraseña.";
+    mensaje.className = "registro-mensaje error";
+  }
+}
+
+async function enviarActualizacionUsuario(usuarioId, datosNuevos) {
+  try {
+    const respuesta = await fetch(`/api/usuarios/${usuarioId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(datosNuevos)
+    });
+    
+    const resultado = await respuesta.json();
+    if (resultado.ok) {
+      alert("¡Datos actualizados con éxito!");
+    } else {
+      alert("Error: " + resultado.error);
+    }
+  } catch (error) {
+    console.error("Error de conexión:", error);
+  }
+}

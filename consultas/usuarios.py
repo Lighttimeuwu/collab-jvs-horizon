@@ -241,6 +241,18 @@ def obtener_o_crear_pais(cursor, nombre_pais):
     cursor.execute("INSERT INTO Pais (Nombre_Pais) VALUES (?)", (pais,))
     return cursor.lastrowid
 
+def actualizar_usuario(cursor, usuario_id, nombre, apellido, correo, telefono, ciudad):
+    """
+    Actualiza los datos de un usuario en la base de datos.
+    """
+    cursor.execute("""
+        UPDATE Usuario
+        SET Nombre = ?, Apellido = ?, Correo = ?, Telefono = ?, Ciudad = ?
+        WHERE Usuario_Id = ?
+    """, (nombre, apellido, correo, telefono, ciudad, usuario_id))
+    
+    return cursor.rowcount > 0
+
 
 def crear_usuario(datos):
     nombre     = (datos.get("nombre")     or "").strip()
@@ -312,3 +324,4 @@ def crear_usuario(datos):
         raise
     finally:
         conexion.close()
+

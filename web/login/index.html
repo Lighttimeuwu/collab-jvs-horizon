@@ -67,13 +67,42 @@
 
 <!-- RECUPERAR CONTRASEÑA -->
 <div id="recuperar" class="modulo">
-
-  <h2>Recuperar contraseña</h2>
-
-  <input placeholder="Correo">
-  <button onclick="alert('Correo enviado correctamente')">Enviar código</button>
+  <h2>Recuperar Contraseña</h2>
+  <p style="color: #bbb; text-align: center; max-width: 320px;">
+    Ingresa tu correo electrónico registrado para enviarte un código de recuperación.
+  </p>
+  <input id="recuperarCorreo" type="email" placeholder="Correo electrónico" required>
+  
+  <p id="recuperarMensaje" class="registro-mensaje"></p>
+  <button onclick="enviarCodigoRecuperacion()">Enviar Código</button>
   <button onclick="mostrar('login')">Volver</button>
+</div>
 
+<div id="validarCodigo" class="modulo">
+  <h2>Verificar Código</h2>
+  <p style="color: #bbb; text-align: center; max-width: 320px;">
+    Hemos simulado el envío de un correo. Por favor, ingresa el código de verificación (usa: <strong>123456</strong>).
+  </p>
+  <input id="codigoIngresado" type="text" placeholder="Código de 6 dígitos" maxlength="6">
+  
+  <p id="codigoMensaje" class="registro-mensaje"></p>
+  <button onclick="verificarCodigo()">Validar Código</button>
+  <button onclick="mostrar('recuperar')">Atrás</button>
+</div>
+
+<div id="nuevaPass" class="modulo">
+  <h2>Restablecer Contraseña</h2>
+  <div class="pass-wrapper">
+    <input id="nuevaContrasena" type="password" placeholder="Nueva contraseña">
+    <button type="button" class="ojo-btn" onclick="toggleOjo('nuevaContrasena', this)" aria-label="Mostrar contraseña">👁️</button>
+  </div>
+  <div class="pass-wrapper">
+    <input id="confirmaContrasena" type="password" placeholder="Confirma contraseña">
+    <button type="button" class="ojo-btn" onclick="toggleOjo('confirmaContrasena', this)" aria-label="Mostrar contraseña">👁️</button>
+  </div>
+  
+  <p id="nuevaPassMensaje" class="registro-mensaje"></p>
+  <button onclick="actualizarContrasena()">Guardar Contraseña</button>
 </div>
 
 <script src="script.js"></script>
