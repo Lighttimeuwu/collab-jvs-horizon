@@ -52,10 +52,6 @@ function escaparHTML(valor = "") {
     .replace(/>/g, "&gt;");
 }
 
-function escaparJS(valor = "") {
-  return String(valor).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-}
-
 function buscarEvento(eventoId) {
   return eventos.find(evento => evento.id === eventoId);
 }
@@ -89,13 +85,10 @@ async function cargarDatosIniciales() {
       peticionJSON("/api/proveedores?t=" + Date.now())
     ]);
     
-    // 👉 FILTRO DEFINITIVO: Solo dejamos los eventos que están PUBLICADOS en el Booking (Publicado === 1)
-    // y que además tengan al menos una función/fecha asignada.
-    eventos = (datosEventos.eventos || []).filter(evento => {
-      const estaPublicado = (evento.Publicado === 1 || evento.publicado === 1);
-      const tieneFunciones = (evento.funciones && evento.funciones.length > 0);
-      return estaPublicado && tieneFunciones;
-    });
+    // Proveedores es una vista de administración: mostramos TODOS los eventos
+    // (publicados o no) para que el admin pueda asignar proveedores, personal y riders
+    // antes de publicarlos en cartelera.
+    eventos = datosEventos.eventos || [];
     
     catalogoProveedores = datosProveedores.proveedores || [];
     renderEventList();
@@ -119,20 +112,22 @@ function renderEventList() {
     return;
   }
 
-  contenedor.innerHTML = eventos.map(evento => `
+  contenedor.innerHTML = eventos.map(evento => {
+    const estaPublicado = evento.publicado || evento.Publicado === 1;
+    return `
     <div class="event" onclick="openModule(${evento.id}, '${escaparJS(evento.nombre)}')">
       <img src="${escaparHTML(evento.imagen || '')}" alt="${escaparHTML(evento.nombre)}">
       <h3>${escaparHTML(evento.nombre)}</h3>
       ${evento.lugar ? `<p class="event-place">${escaparHTML(evento.lugar)}</p>` : ""}
       <div id="empresas-evento-${evento.id}" class="provider-tags-wrapper">Cargando proveedores...</div>
-      ${evento.publicado
-        ? `<p class="sent-board-status">Publicado en cartelera</p>`
-        : ""}
+      ${estaPublicado
+        ? `<p class="sent-board-status">✅ Publicado en cartelera</p>`
+        : `<p class="sent-board-status" style="background:rgba(150,80,0,0.85);">⏳ Borrador</p>`}
       <div class="event-actions">
         <button class="provider-card-btn" onclick="abrirEditorProveedores(event, ${evento.id}, '${escaparJS(evento.nombre)}')">Asignar proveedores</button>
       </div>
     </div>
-  `).join("");
+  `}).join("");
 
   eventos.forEach(evento => cargarYRenderEmpresasEvento(evento.id));
 }
@@ -170,9 +165,21 @@ function openModule(eventoId, eventoNombre) {
 
 async function render() {
   const evento = buscarEvento(currentEvent);
-  const publicado = evento ? evento.publicado : false;
+  const publicado = evento ? (evento.publicado || evento.Publicado === 1) : false;
 
   document.getElementById("content").innerHTML = `
+    <div class="section">
+      <h4>🎵 Rider Técnico del Evento</h4>
+      <div id="riderInfo" style="
+        background: rgba(255,255,255,0.07);
+        border: 1px solid rgba(255,191,0,0.35);
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin-bottom: 16px;
+        min-height: 48px;
+      ">Cargando rider...</div>
+    </div>
+
     <div class="section">
       <h4>Personal Tecnico</h4>
       <p class="helper-text">Selecciona las funciones de cada persona y agrega su nombre.</p>
@@ -196,7 +203,76 @@ async function render() {
     </div>
   `;
 
-  await cargarYRenderPersonal();
+  await Promise.all([
+    cargarYRenderPersonal(),
+    cargarYRenderRider()
+  ]);
+}
+
+/* ========================
+   RIDER TÉCNICO (solo lectura en Proveedores)
+   ======================== */
+
+async function cargarYRenderRider() {
+  const contenedor = document.getElementById("riderInfo");
+  if (!contenedor) return;
+
+  // El rider se guarda en Booking con la clave "sqlite_<id>",
+  // por eso construimos el artista_id del mismo modo.
+  const artistaId = "sqlite_" + currentEvent;
+
+  try {
+    const respuesta = await fetch(`/api/riders/${encodeURIComponent(artistaId)}`);
+    const datos = await respuesta.json();
+
+    if (!respuesta.ok || !datos.ok || !datos.rider) {
+      contenedor.innerHTML = `<em style="color:#bbb;">Sin rider técnico vinculado para este evento.</em>`;
+      return;
+    }
+
+    const rider = datos.rider;
+    const tieneArchivo = rider.nombre_archivo && rider.contenido_base64;
+    const genero = rider.genero || "—";
+
+    contenedor.innerHTML = `
+      <div style="display:flex; flex-wrap:wrap; gap:18px; align-items:center;">
+        <div>
+          <span style="color:#ffbf00; font-weight:bold;">Género musical:</span>
+          <span style="margin-left:6px;">${escaparHTML(genero)}</span>
+        </div>
+        <div>
+          <span style="color:#ffbf00; font-weight:bold;">Archivo:</span>
+          <span style="margin-left:6px; color:${tieneArchivo ? '#4CAF50' : '#e57373'};">
+            ${tieneArchivo ? '✅ ' + escaparHTML(rider.nombre_archivo) : '❌ Sin archivo'}
+          </span>
+        </div>
+        ${tieneArchivo ? `
+        <button
+          onclick="abrirRiderProveedores('${escaparJS(rider.contenido_base64)}')"
+          style="background:#2196F3; color:white; border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-weight:bold;">
+          👁️ Abrir rider
+        </button>` : ""}
+      </div>
+    `;
+  } catch (error) {
+    contenedor.innerHTML = `<em style="color:#bbb;">No se pudo consultar el rider: ${escaparHTML(error.message)}</em>`;
+  }
+}
+
+function escaparJS(valor = "") {
+  return String(valor).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+}
+
+function abrirRiderProveedores(contenidoBase64) {
+  const ventana = window.open();
+  if (!ventana) {
+    alert("El navegador bloqueó la ventana emergente. Permite ventanas emergentes para este sitio.");
+    return;
+  }
+  ventana.document.write(
+    '<iframe src="' + contenidoBase64 +
+    '" frameborder="0" style="border:0;top:0;left:0;bottom:0;right:0;width:100%;height:100%;position:fixed;" allowfullscreen></iframe>'
+  );
 }
 
 async function cargarYRenderPersonal() {

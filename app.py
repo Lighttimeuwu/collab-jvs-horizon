@@ -23,12 +23,10 @@ from consultas.riders import guardar_rider, obtener_rider, listar_riders, elimin
 
 app = Flask(__name__, static_folder=None)
 
-# Cambia esto por algo aleatorio en producción
 app.secret_key = os.environ.get("FLASK_SECRET", "jvs-horizon-secret-2025")
 
 ROLES_ADMIN = {1, 2, 3}
 
-# ── Ajusta estas rutas si tus carpetas tienen otro nombre ──────────────────
 WEB_DIR         = os.path.join(BASE_DIR, "web")
 LOGIN_DIR       = os.path.join(WEB_DIR, "login")
 APP_DIR         = os.path.join(WEB_DIR, "app")
@@ -38,8 +36,6 @@ PROVEEDORES_DIR = os.path.join(WEB_DIR, "JVS FRONTED PROVEEDORES")
 
 
 # ─── Limpiar eventos vencidos al arrancar ────────────────────────────────────
-# Despublica en la DB cualquier evento cuyas fechas ya pasaron,
-# antes de atender el primer request.
 try:
     despublicar_eventos_vencidos()
 except Exception as _e:
@@ -68,13 +64,6 @@ def permitir_frontend_local(respuesta):
     return respuesta
 
 
-# ─── Sin caché en páginas protegidas por sesión ───────────────────────────────
-# Evita que el botón "atrás" del navegador muestre una versión cacheada del
-# login/admin/app (bfcache o caché de disco) en vez de volver a pedirle la
-# página a Flask. Sin esto, alguien con sesión activa podía "retroceder" y
-# ver el formulario de login viejo aunque ya estuviera logueado (o viceversa:
-# ver una página protegida tras cerrar sesión).
-
 @app.after_request
 def evitar_cache_paginas_web(respuesta):
     if request.path.startswith("/web/"):
@@ -90,7 +79,6 @@ def evitar_cache_paginas_web(respuesta):
 @app.get("/web/login/")
 @app.get("/web/login/index.html")
 def pagina_login():
-    """Si hay sesión activa redirige; si no, muestra el login."""
     u = usuario_activo()
     if u:
         return redirect("/web/admin/" if u.get("rol_id") in ROLES_ADMIN else "/web/app/")
@@ -153,19 +141,17 @@ def static_proveedores(filename):
         return redirect("/web/login/")
     return send_from_directory(PROVEEDORES_DIR, filename)
 
-from utilidades.conexion import conectar # Asegúrate de tener esta importación en app.py
+
+# ─── Usuarios ─────────────────────────────────────────────────────────────────
 
 @app.route("/api/usuarios", methods=["GET"])
 def obtener_correos_usuarios_api():
-    """
-    Endpoint de respaldo para listar correos de usuarios (utilizado en validaciones de recuperación/registro).
-    """
+    """Lista correos de usuarios (utilizado en validaciones de recuperación/registro)."""
     conexion = conectar()
     cursor = conexion.cursor()
     try:
         cursor.execute("SELECT Correo FROM Usuario")
         filas = cursor.fetchall()
-        # Formateamos la salida como una lista de diccionarios que Javascript pueda leer con .json()
         correos = [{"correo": fila[0]} for fila in filas]
         return jsonify(correos)
     except Exception as error:
@@ -173,70 +159,41 @@ def obtener_correos_usuarios_api():
     finally:
         conexion.close()
 
-@app.route("/api/usuarios", methods=["GET"])
-def listar_usuarios_api():
-    """
-    Endpoint de respaldo para listar usuarios y permitir validaciones en el frontend.
-    """
-    conexion = conectar()
-    cursor = conexion.cursor()
+@app.post("/api/usuarios")
+def registrar_usuario():
+    """Registra usuarios desde la Vista Usuario y los guarda en SQLite."""
     try:
-        # Llamamos a tu función que lista usuarios (puedes ajustar el nombre según tu archivo usuarios.py)
-        cursor.execute("SELECT Usuario_Id, Correo FROM Usuario")
-        filas = cursor.fetchall()
-        
-        # Convertimos a formato de lista de diccionarios
-        usuarios = [{"usuario_id": fila[0], "correo": fila[1]} for fila in filas]
-        return jsonify(usuarios)
+        datos = request.get_json(silent=True) or {}
+        usuario = crear_usuario(datos)
+        return jsonify({
+            "ok": True,
+            "mensaje": "Usuario registrado correctamente",
+            "usuario": usuario
+        }), 201
+    except ValueError as error:
+        return jsonify({"ok": False, "error": str(error)}), 400
     except Exception as error:
-        return jsonify({"error": str(error)}), 500
-    finally:
-        conexion.close()
-
-
-@app.route("/api/usuarios", methods=["GET", "POST", "PUT"])
-def manejar_usuarios_api():
-    """
-    Punto de entrada para gestionar usuarios según el método HTTP.
-    """
-    if request.method == "GET":
-        # Lógica para listar usuarios (puedes llamar a tu función correspondiente)
-        return jsonify({"ok": True, "usuarios": []})
-        
-    elif request.method == "POST":
-        # Lógica para registrar un usuario nuevo
-        datos = request.get_json()
-        # ... tu lógica de creación ...
-        return jsonify({"ok": True, "mensaje": "Usuario creado"})
-
-    elif request.method == "PUT":
-        # Lógica para actualizar el usuario que pasaste al principio
-        datos = request.get_json()
-        # ... tu lógica de actualización ...
-        return jsonify({"ok": True, "mensaje": "Usuario actualizado"})
+        return jsonify({"ok": False, "error": str(error)}), 500
 
 @app.put("/api/usuarios/<int:usuario_id>")
 def modificar_usuario_api(usuario_id):
-    """
-    Modifica la información de un usuario en la DB.
-    """
+    """Modifica la información de un usuario en la DB."""
     datos = request.get_json()
-    
     conexion = conectar()
     cursor = conexion.cursor()
     try:
+        from consultas.usuarios import actualizar_usuario
         exito = actualizar_usuario(
-            cursor, 
-            usuario_id, 
-            datos.get("nombre"), 
-            datos.get("apellido"), 
-            datos.get("correo"), 
-            datos.get("telefono"), 
+            cursor,
+            usuario_id,
+            datos.get("nombre"),
+            datos.get("apellido"),
+            datos.get("correo"),
+            datos.get("telefono"),
             datos.get("ciudad")
         )
         if not exito:
             return jsonify({"ok": False, "error": "Usuario no encontrado"}), 404
-        
         conexion.commit()
         return jsonify({"ok": True, "mensaje": "Usuario actualizado correctamente"})
     except Exception as error:
@@ -245,23 +202,7 @@ def modificar_usuario_api(usuario_id):
         conexion.close()
 
 
-def convertir_evento_a_json(evento):
-    """Convierte la tupla de consultas/eventos.py en un objeto JSON claro."""
-    evento_id, nombre, fecha, descripcion, hora, lugar, imagen, publicado = evento
-    return {
-        "id": evento_id,
-        "nombre": nombre,
-        "fecha": fecha,
-        "hora": hora,
-        "lugar": lugar,
-        "ubicacion": lugar,
-        "imagen": imagen,
-        "descripcion": descripcion,
-        "Descripcion": descripcion,
-        "publicado": bool(publicado),
-        "funciones": []
-    }
-
+# ─── Sesión ───────────────────────────────────────────────────────────────────
 
 @app.post("/api/login")
 def iniciar_sesion():
@@ -279,7 +220,7 @@ def iniciar_sesion():
         if usuario:
             if usuario["estado"] == "Inactivo":
                 return jsonify({"ok": False, "error": "Usuario inactivo"}), 403
-            session["usuario"] = usuario          # ← abre sesión en el servidor
+            session["usuario"] = usuario
             return jsonify({"ok": True, "mensaje": "Bienvenido", "usuario": usuario})
         else:
             return jsonify({"ok": False, "error": "Correo o contrasena incorrectos"}), 401
@@ -306,7 +247,6 @@ def obtener_sesion():
         "telefono": u.get("telefono")
     })
 
-
 @app.post("/api/logout")
 def cerrar_sesion_api():
     """Destruye la sesión del servidor."""
@@ -314,57 +254,60 @@ def cerrar_sesion_api():
     return jsonify({"ok": True})
 
 
-@app.get("/api/ventas")
-def obtener_ventas_api():
-    """Devuelve el historial de ventas para el panel del Administrador."""
+# ─── Eventos ──────────────────────────────────────────────────────────────────
+
+def convertir_evento_a_json(evento):
+    """Convierte la tupla de consultas/eventos.py en un objeto JSON claro."""
+    evento_id, nombre, fecha, descripcion, hora, lugar, imagen, publicado = evento
+    return {
+        "id": evento_id,
+        "nombre": nombre,
+        "fecha": fecha,
+        "hora": hora,
+        "lugar": lugar,
+        "ubicacion": lugar,
+        "imagen": imagen,
+        "descripcion": descripcion,
+        "Descripcion": descripcion,
+        "publicado": bool(publicado),
+        # ✅ FIX: también exponemos Publicado en mayúsculas para que
+        # proveedores.js lo encuentre con cualquiera de las dos grafías.
+        "Publicado": 1 if publicado else 0,
+        "funciones": []
+    }
+
+
+@app.get("/api/eventos")
+def obtener_eventos():
+    """
+    ✅ FIX: Endpoint único (eliminado el duplicado que pisaba este).
+    Devuelve eventos desde SQLite.
+      ?publicados=1  → solo los publicados (vista usuario)
+      ?ciudad=Bogotá → filtra por ciudad
+      sin parámetro  → todos (panel admin / booking / proveedores)
+    """
     try:
-        ventas = listar_historial_ventas()
-        ventas_formateadas = [{"cliente": fila[0], "item": fila[1]} for fila in ventas]
-        return jsonify({"ok": True, "ventas": ventas_formateadas})
-    except Exception as error:
-        return jsonify({"ok": False, "error": str(error)}), 500
+        solo_publicados = request.args.get("publicados") == "1"
+        ciudad_filtrada = request.args.get("ciudad")
 
+        todos = [convertir_evento_a_json(evento) for evento in listar_eventos(ciudad=ciudad_filtrada)]
 
-@app.post("/api/ventas/web")
-def registrar_venta_web_api():
-    """Guarda una compra realizada desde el frontend del usuario."""
-    try:
-        datos = request.get_json(silent=True) or {}
-        resultado = registrar_venta_web(datos)
-        return jsonify({"ok": True, **resultado}), 201
-    except Exception as error:
-        return jsonify({"ok": False, "error": str(error)}), 500
+        if solo_publicados:
+            eventos = [e for e in todos if e.get("publicado")]
+        else:
+            eventos = todos
 
+        eventos_por_id = {evento["id"]: evento for evento in eventos}
+        for evento_id, nombre, fecha, hora, aforo_total, lugar in consultar_aforo():
+            evento = eventos_por_id.get(evento_id)
+            if evento is None:
+                continue
+            evento["funciones"].append({
+                "fecha": fecha, "hora": hora,
+                "aforo_total": aforo_total, "lugar": lugar
+            })
 
-@app.get("/api/ventas/usuario/<correo>")
-def ventas_usuario_api(correo):
-    """Devuelve el historial de compras de un usuario por su correo."""
-    try:
-        ventas = listar_ventas_usuario(correo)
-        return jsonify({"ok": True, "ventas": ventas})
-    except Exception as error:
-        return jsonify({"ok": False, "error": str(error)}), 500
-
-
-@app.get("/api/proveedores")
-def obtener_proveedores_api():
-    """Devuelve la lista de proveedores tecnicos registrados."""
-    try:
-        proveedores = listar_proveedores()
-        # El JS guarda esto en catalogoProveedores y lo itera como [[id, nombre], ...]
-        lista = [[p[0], p[1]] for p in proveedores]
-        return jsonify({"ok": True, "proveedores": lista})
-    except Exception as error:
-        return jsonify({"ok": False, "error": str(error)}), 500
-
-
-@app.get("/api/logistica")
-def obtener_logistica_api():
-    """Devuelve el cruce de eventos con sus proveedores asignados."""
-    try:
-        logistica = consultar_proveedores_por_evento()
-        lista = [{"evento": l[0], "proveedor": l[1]} for l in logistica]
-        return jsonify({"ok": True, "logistica": lista})
+        return jsonify({"ok": True, "total": len(eventos), "eventos": eventos})
     except Exception as error:
         return jsonify({"ok": False, "error": str(error)}), 500
 
@@ -386,38 +329,6 @@ def crear_evento_api():
         return jsonify({"ok": False, "error": str(error)}), 500
 
 
-@app.get("/api/eventos")
-def obtener_eventos():
-    """
-    Devuelve eventos desde SQLite.
-    ?publicados=1  → solo los publicados (vista usuario)
-    sin parámetro  → todos (panel admin)
-    """
-    try:
-        solo_publicados = request.args.get("publicados") == "1"
-        todos = [convertir_evento_a_json(evento) for evento in listar_eventos()]
-        if solo_publicados:
-            eventos = [e for e in todos if e.get("publicado")]
-        else:
-            eventos = todos
-        eventos_por_nombre = {evento["nombre"]: evento for evento in eventos}
-
-        for nombre, fecha, hora, aforo_total, lugar in consultar_aforo():
-            evento = eventos_por_nombre.get(nombre)
-            if evento is None:
-                continue
-            evento["funciones"].append({
-                "fecha": fecha,
-                "hora": hora,
-                "aforo_total": aforo_total,
-                "lugar": lugar
-            })
-
-        return jsonify({"ok": True, "total": len(eventos), "eventos": eventos})
-    except Exception as error:
-        return jsonify({"ok": False, "error": str(error)}), 500
-
-
 @app.put("/api/eventos/<int:evento_id>")
 def actualizar_evento_api(evento_id):
     """Actualiza un evento real de SQLite desde Booking."""
@@ -435,15 +346,9 @@ def actualizar_evento_api(evento_id):
         return jsonify({"ok": False, "error": str(error)}), 500
 
 
-# ─── Publicación a cartelera / proveedores / personal técnico (Proveedores) ──
-
 @app.put("/api/eventos/<int:evento_id>/imagen")
 def actualizar_imagen_evento_api(evento_id):
-    """
-    Recibe una imagen en base64 y la guarda en Evento.Imagen.
-    El booking la envía así:
-        { "imagen": "data:image/jpeg;base64,/9j/..." }
-    """
+    """Recibe una imagen en base64 y la guarda en Evento.Imagen."""
     try:
         datos  = request.get_json(silent=True) or {}
         imagen = (datos.get("imagen") or "").strip()
@@ -486,19 +391,55 @@ def despublicar_evento_api(evento_id):
         return jsonify({"ok": False, "error": str(error)}), 500
 
 
-# ─── Limpieza automática de eventos vencidos (llamada desde el frontend) ─────
-
 @app.post("/api/eventos/limpiar-vencidos")
 def limpiar_eventos_vencidos_api():
-    """
-    Despublica en la DB todos los eventos cuyas fechas ya pasaron.
-    El frontend lo llama silenciosamente al cargar la cartelera,
-    para que los eventos vencidos desaparezcan en tiempo real
-    sin necesitar reiniciar Flask.
-    """
+    """Despublica en la DB todos los eventos cuyas fechas ya pasaron."""
     try:
         vencidos = despublicar_eventos_vencidos()
         return jsonify({"ok": True, "despublicados": vencidos})
+    except Exception as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
+
+
+@app.delete("/api/eventos/<int:evento_id>")
+def eliminar_evento_api(evento_id):
+    """Elimina un evento de la DB. Solo admin."""
+    if not es_admin():
+        return jsonify({"ok": False, "error": "No autorizado"}), 403
+    try:
+        try:
+            despublicar_evento(evento_id)
+        except Exception:
+            pass
+
+        eliminado = eliminar_evento(evento_id)
+        if not eliminado:
+            return jsonify({"ok": False, "error": "El evento no existe"}), 404
+        return jsonify({"ok": True, "mensaje": "Evento eliminado"})
+    except Exception as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
+
+
+# ─── Proveedores y personal técnico ──────────────────────────────────────────
+
+@app.get("/api/proveedores")
+def obtener_proveedores_api():
+    """Devuelve la lista de proveedores tecnicos registrados."""
+    try:
+        proveedores = listar_proveedores()
+        lista = [[p[0], p[1]] for p in proveedores]
+        return jsonify({"ok": True, "proveedores": lista})
+    except Exception as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
+
+
+@app.get("/api/logistica")
+def obtener_logistica_api():
+    """Devuelve el cruce de eventos con sus proveedores asignados."""
+    try:
+        logistica = consultar_proveedores_por_evento()
+        lista = [{"evento": l[0], "proveedor": l[1]} for l in logistica]
+        return jsonify({"ok": True, "logistica": lista})
     except Exception as error:
         return jsonify({"ok": False, "error": str(error)}), 500
 
@@ -517,10 +458,7 @@ def obtener_proveedores_evento_api(evento_id):
 
 @app.put("/api/eventos/<int:evento_id>/proveedores")
 def asignar_proveedores_evento_api(evento_id):
-    """
-    Reemplaza los proveedores asignados a un evento. Body esperado:
-    { "proveedores": [1, 6] }  ← lista de Proveedor_Id
-    """
+    """Reemplaza los proveedores asignados a un evento."""
     if not es_admin():
         return jsonify({"ok": False, "error": "No autorizado"}), 403
     try:
@@ -550,10 +488,7 @@ def obtener_personal_tecnico_api(evento_id):
 
 @app.post("/api/eventos/<int:evento_id>/personal")
 def agregar_personal_tecnico_api(evento_id):
-    """
-    Agrega una persona de personal tecnico a un evento. Body esperado:
-    { "nombre": "Carlos Ramirez", "funciones": ["Audio", "Iluminacion"] }
-    """
+    """Agrega una persona de personal tecnico a un evento."""
     if not es_admin():
         return jsonify({"ok": False, "error": "No autorizado"}), 403
     try:
@@ -580,9 +515,11 @@ def eliminar_personal_tecnico_api(personal_id):
         return jsonify({"ok": False, "error": str(error)}), 500
 
 
+# ─── Asientos ─────────────────────────────────────────────────────────────────
+
 @app.route("/api/asientos-ocupados", methods=["GET", "OPTIONS"])
 def obtener_asientos_ocupados_api():
-    """Consulta asientos ocupados desde SQLite por evento y fecha (query params)."""
+    """Consulta asientos ocupados desde SQLite por evento y fecha."""
     if request.method == "OPTIONS":
         return jsonify({"ok": True})
     try:
@@ -617,28 +554,45 @@ def registrar_asientos_ocupados_api():
         return jsonify({"ok": False, "error": str(error)}), 500
 
 
-@app.post("/api/usuarios")
-def registrar_usuario():
-    """Registra usuarios desde la Vista Usuario y los guarda en SQLite."""
+# ─── Ventas ───────────────────────────────────────────────────────────────────
+
+@app.get("/api/ventas")
+def obtener_ventas_api():
+    """Devuelve el historial de ventas para el panel del Administrador."""
     try:
-        datos = request.get_json(silent=True) or {}
-        usuario = crear_usuario(datos)
-        return jsonify({
-            "ok": True,
-            "mensaje": "Usuario registrado correctamente",
-            "usuario": usuario
-        }), 201
-    except ValueError as error:
-        return jsonify({"ok": False, "error": str(error)}), 400
+        ventas = listar_historial_ventas()
+        ventas_formateadas = [{"cliente": fila[0], "item": fila[1]} for fila in ventas]
+        return jsonify({"ok": True, "ventas": ventas_formateadas})
     except Exception as error:
         return jsonify({"ok": False, "error": str(error)}), 500
 
 
-# ─── Gestión de roles (panel administrador) ───────────────────────────────
+@app.post("/api/ventas/web")
+def registrar_venta_web_api():
+    """Guarda una compra realizada desde el frontend del usuario."""
+    try:
+        datos = request.get_json(silent=True) or {}
+        resultado = registrar_venta_web(datos)
+        return jsonify({"ok": True, **resultado}), 201
+    except Exception as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
+
+
+@app.get("/api/ventas/usuario/<correo>")
+def ventas_usuario_api(correo):
+    """Devuelve el historial de compras de un usuario por su correo."""
+    try:
+        ventas = listar_ventas_usuario(correo)
+        return jsonify({"ok": True, "ventas": ventas})
+    except Exception as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
+
+
+# ─── Roles ────────────────────────────────────────────────────────────────────
 
 @app.get("/api/roles")
 def obtener_roles_api():
-    """Devuelve el catálogo de roles (Administrador, Coordinador, Vendedor, Cliente)."""
+    """Devuelve el catálogo de roles."""
     if not es_admin():
         return jsonify({"ok": False, "error": "No autorizado"}), 403
     try:
@@ -650,7 +604,7 @@ def obtener_roles_api():
 
 @app.get("/api/usuarios/roles")
 def listar_usuarios_roles_api():
-    """Devuelve todos los usuarios con su(s) rol(es) actual(es), para el panel de roles."""
+    """Devuelve todos los usuarios con su(s) rol(es) actual(es)."""
     if not es_admin():
         return jsonify({"ok": False, "error": "No autorizado"}), 403
     try:
@@ -662,11 +616,7 @@ def listar_usuarios_roles_api():
 
 @app.put("/api/usuarios/<int:usuario_id>/roles")
 def asignar_roles_usuario_api(usuario_id):
-    """
-    Reemplaza el conjunto de roles de un usuario. Body esperado:
-    { "roles": [1, 4] }  ← lista de Rol_Id (1=Admin, 2=Coordinador, 3=Vendedor, 4=Cliente)
-    Solo accesible para administradores.
-    """
+    """Reemplaza el conjunto de roles de un usuario."""
     if not es_admin():
         return jsonify({"ok": False, "error": "No autorizado"}), 403
     try:
@@ -677,8 +627,6 @@ def asignar_roles_usuario_api(usuario_id):
 
         resultado = asignar_roles_usuario(usuario_id, roles)
 
-        # Si el admin se quita su propio rol de administrador, refrescamos
-        # su sesion para que no quede con permisos desincronizados.
         u = usuario_activo()
         if u and u.get("id") == usuario_id:
             u["rol_id"] = resultado["rol_id"]
@@ -694,6 +642,8 @@ def asignar_roles_usuario_api(usuario_id):
     except Exception as error:
         return jsonify({"ok": False, "error": str(error)}), 500
 
+
+# ─── Riders ───────────────────────────────────────────────────────────────────
 
 @app.get("/api/riders")
 def listar_riders_api():
@@ -742,10 +692,7 @@ def guardar_rider_api(artista_id):
 
 @app.put("/api/riders/<artista_id>/genero")
 def actualizar_genero_rider_api(artista_id):
-    """
-    Guarda/actualiza solo el genero musical de un artista/evento,
-    sin necesidad de tener ya un archivo de rider subido.
-    """
+    """Guarda/actualiza solo el genero musical de un artista/evento."""
     try:
         datos = request.get_json(silent=True) or {}
         resultado = guardar_genero_rider(artista_id, datos.get("genero"))
@@ -762,20 +709,14 @@ def actualizar_genero_rider_api(artista_id):
 
 @app.delete("/api/riders/<artista_id>")
 def eliminar_rider_api(artista_id):
-    """
-    Elimina el rider tecnico vinculado a un artista/evento.
-    Si el artista_id corresponde a un evento SQLite (formato 'sqlite_X'),
-    tambien despublica el evento en la DB para que desaparezca
-    inmediatamente de la vista del usuario.
-    """
+    """Elimina el rider tecnico vinculado a un artista/evento."""
     try:
-        # Despublicar el evento en SQLite si el rider pertenece a uno
         if artista_id.startswith("sqlite_"):
             try:
                 evento_id = int(artista_id.replace("sqlite_", ""))
                 despublicar_evento(evento_id)
             except Exception:
-                pass  # Si no existe o ya estaba despublicado, continuar igual
+                pass
 
         eliminado = eliminar_rider(artista_id)
         if not eliminado:
@@ -785,86 +726,50 @@ def eliminar_rider_api(artista_id):
         return jsonify({"ok": False, "error": str(error)}), 500
 
 
-@app.delete("/api/eventos/<int:evento_id>")
-def eliminar_evento_api(evento_id):
-    """
-    Elimina un evento de la DB. Solo admin.
-    Despublica primero para que desaparezca de la cartelera del usuario
-    antes del borrado fisico.
-    """
-    if not es_admin():
-        return jsonify({"ok": False, "error": "No autorizado"}), 403
-    try:
-        # Despublicar antes de borrar: garantiza que el evento
-        # desaparezca de /api/eventos?publicados=1 en ese instante
-        try:
-            despublicar_evento(evento_id)
-        except Exception:
-            pass  # Si no existia o ya estaba despublicado, continuar
-
-        eliminado = eliminar_evento(evento_id)
-        if not eliminado:
-            return jsonify({"ok": False, "error": "El evento no existe"}), 404
-        return jsonify({"ok": True, "mensaje": "Evento eliminado"})
-    except Exception as error:
-        return jsonify({"ok": False, "error": str(error)}), 500
-
-# ==========================================
-# ENDPOINT DE RECUPERACIÓN DE CONTRASEÑA
-# ==========================================
+# ─── Recuperación de contraseña ───────────────────────────────────────────────
 
 @app.route("/api/usuarios/contrasena", methods=["PUT"])
 def actualizar_pass_recuperacion():
-    """
-    Modifica la contraseña del usuario en la base de datos al recuperar contraseña.
-    """
+    """Modifica la contraseña del usuario en la base de datos al recuperar contraseña."""
     datos = request.get_json()
     correo = datos.get("correo")
     nueva_pass = datos.get("nueva_contrasena")
 
-    # Verificamos que los datos no estén vacíos
     if not correo or not nueva_pass:
         return jsonify({"ok": False, "error": "Faltan datos (correo o contraseña)"}), 400
 
     conexion = conectar()
     cursor = conexion.cursor()
     try:
-        # Actualizamos la contraseña en la tabla Usuario filtrando por correo
         cursor.execute("""
             UPDATE Usuario
             SET Contrasena = ?
             WHERE Correo = ?
         """, (nueva_pass, correo))
-        
-        # Si no se afectó ninguna fila, el correo no existe en la DB
+
         if cursor.rowcount == 0:
             return jsonify({"ok": False, "error": "Usuario no encontrado con ese correo"}), 404
-            
+
         conexion.commit()
         return jsonify({"ok": True, "mensaje": "Contraseña actualizada correctamente"})
-        
+
     except Exception as error:
         return jsonify({"ok": False, "error": str(error)}), 500
-        
+
     finally:
         conexion.close()
 
 
-# ==================================================
-# HERRAMIENTA TEMPORAL: LIMPIEZA DE EVENTOS FANTASMA
-# ==================================================
+# ─── Herramienta de limpieza de eventos fantasma ─────────────────────────────
+
 @app.route("/api/borrar-fantasma", methods=["GET"])
 def borrar_fantasma_manual():
-    """
-    Panel rápido para ver los IDs de todos los eventos en la BD
-    y permitir la eliminación física definitiva de los fantasmas.
-    """
+    """Panel rápido para ver y eliminar eventos fantasma de la BD."""
     evento_id = request.args.get("id")
     conexion = conectar()
     cursor = conexion.cursor()
-    
+
     try:
-        # Si el usuario hace clic en eliminar un ID específico
         if evento_id:
             cursor.execute("DELETE FROM Evento WHERE Evento_Id = ?", (evento_id,))
             cursor.execute("DELETE FROM Evento_Artista WHERE Evento_Id = ?", (evento_id,))
@@ -877,21 +782,16 @@ def borrar_fantasma_manual():
                     <a href="/api/borrar-fantasma" style="color: blue; font-weight: bold;">← Volver al listado</a>
                 </div>
             """
-        
-        # Si no hay ID en la URL, listamos todos los eventos existentes en la BD
+
         cursor.execute("SELECT Evento_Id, Nombre FROM Evento")
         todos_los_eventos = cursor.fetchall()
-        
-        # Construimos una interfaz HTML básica y rápida
+
         html = """
         <div style="font-family: Arial; max-width: 600px; margin: 30px auto; padding: 20px; border: 1px solid #ccc; border-radius: 8px;">
             <h2>Panel de Purga: Eventos en Base de Datos</h2>
-            <p>Busca los eventos viejos o fantasmas que quieres desaparecer y haz clic en eliminar:</p>
             <table border="1" cellpadding="10" style="width: 100%; border-collapse: collapse; text-align: left;">
                 <tr style="background-color: #f2f2f2;">
-                    <th>ID</th>
-                    <th>Nombre del Evento</th>
-                    <th>Acción</th>
+                    <th>ID</th><th>Nombre del Evento</th><th>Acción</th>
                 </tr>
         """
         for ev in todos_los_eventos:
@@ -900,10 +800,10 @@ def borrar_fantasma_manual():
                     <td>{ev[0]}</td>
                     <td><strong>{ev[1]}</strong></td>
                     <td>
-                        <a href="/api/borrar-fantasma?id={ev[0]}" 
-                           style="color: red; font-weight: bold; text-decoration: none;"
-                           onclick="return confirm('¿Estás seguro de que deseas eliminar este evento para siempre de la base de datos?');">
-                           ❌ Eliminar Definitivamente
+                        <a href="/api/borrar-fantasma?id={ev[0]}"
+                           style="color: red; font-weight: bold;"
+                           onclick="return confirm('¿Eliminar este evento definitivamente?');">
+                           ❌ Eliminar
                         </a>
                     </td>
                 </tr>
@@ -912,17 +812,19 @@ def borrar_fantasma_manual():
         return html
 
     except Exception as error:
-        return f"<h2>Error en la purga:</h2><p>{str(error)}</p>"
+        return f"<h2>Error:</h2><p>{str(error)}</p>"
     finally:
         conexion.close()
 
+
 @app.after_request
 def desactivar_cache_navegador(response):
-    """Obliga al navegador a pedir datos nuevos siempre en cada recarga"""
+    """Obliga al navegador a pedir datos nuevos siempre en cada recarga."""
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
     return response
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)

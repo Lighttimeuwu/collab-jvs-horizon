@@ -7,19 +7,19 @@ function urlRider(artistaId) { return API_RIDERS_URL + '/' + encodeURIComponent(
 function urlGeneroRider(artistaId) { return API_RIDERS_URL + '/' + encodeURIComponent(artistaId) + '/genero'; }
 const IMAGEN_EVENTO_SQLITE = 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?auto=format&fit=crop&w=900&q=80';
 
-const EVENTOS_BASE = []; // Eventos hardcodeados eliminados; todo viene de la DB
+const EVENTOS_BASE = [];
 
 const LOCALIDADES_EVENTO = [
-    'Movistar Arena',
-    'Hotel Paradise',
-    'Pradera Box',
-    'Club Campestre',
-    'Trisquel Bar',
-    'Aurora Discoteca',
-    'Plaza mayor',
-    'Finca Villa Sol',
-    'Parque Simon Bolivar',
-    'Vintage Disco'
+    'Movistar Arena (Bogotá)',
+    'Parque Simón Bolívar (Bogotá)',
+    'Coliseo MedPlus (Bogotá)',
+    'Centro de Eventos La Macarena (Medellín)',
+    'Plaza Mayor (Medellín)',
+    'Centro de Eventos Valle del Pacífico (Cali)',
+    'Arena Cañaveralejo (Cali)',
+    'Centro de Eventos Puerta de Oro (Barranquilla)',
+    'Estadio Romelio Martínez (Barranquilla)',
+    'Plaza de la Paz (Barranquilla)'
 ];
 
 function obtenerEventosPublicados() {
@@ -56,22 +56,16 @@ function crearEventoBookingDesdeAPI(evento) {
         horas: funciones.length ? funciones.map(funcion => funcion.hora || horaBase) : [horaBase],
         fechas: fechas,
         imagen: evento.imagen || IMAGEN_EVENTO_SQLITE
-        // NOTA: no se pone enCartelera aquí. Solo el módulo de Proveedores
-        // puede activar enCartelera: true tras completar el proceso.
     };
 }
 
 async function cargarEventosDesdeAPI() {
     try {
-        // Purgar del localStorage cualquier evento legado hardcodeado (art1–art6)
-        // que haya quedado de versiones anteriores. Solo se hace una vez: si ya
-        // no quedan entradas con id "art*", la operación es un no-op.
         const eventosGuardados = obtenerEventosPublicados();
         const sinLegados = eventosGuardados.filter(ev => !/^art\d+$/.test(ev.id));
         if (sinLegados.length !== eventosGuardados.length) {
             guardarEventosPublicados(sinLegados);
         }
-        // Limpiar también las claves auxiliares de esos eventos legados
         ['art1','art2','art3','art4','art5','art6'].forEach(id => {
             localStorage.removeItem('reserva_' + id);
             localStorage.removeItem('fecha_reserva_' + id);
@@ -91,11 +85,9 @@ async function cargarEventosDesdeAPI() {
         const eliminados = obtenerEventosEliminados();
         eventosAPI.forEach(eventoAPI => {
             const eventoBooking = crearEventoBookingDesdeAPI(eventoAPI);
-            // Si el usuario ya eliminó este evento, no volver a insertarlo
             if (eliminados.includes(eventoBooking.id)) return;
             const indice = eventosActuales.findIndex(evento => evento.id === eventoBooking.id);
             if (indice >= 0) {
-                // Preservar enCartelera si ya estaba definido (no pisarlo con undefined)
                 const enCarteleraActual = eventosActuales[indice].enCartelera;
                 eventosActuales[indice] = Object.assign({}, eventosActuales[indice], eventoBooking);
                 if (enCarteleraActual !== undefined) {
@@ -103,7 +95,6 @@ async function cargarEventosDesdeAPI() {
                 }
                 huboCambios = true;
             } else {
-                // Evento nuevo desde la API: llega como borrador (sin enCartelera)
                 eventosActuales.push(eventoBooking);
                 huboCambios = true;
             }
@@ -166,9 +157,6 @@ function crearTarjetaEvento(evento) {
     const fechas = evento.fechas.map(fecha => `<li>&#128197; ${fecha}</li>`).join('');
     const etiquetaOrigen = '';
     const descripcion = evento.descripcion ? `<p class="descripcion-evento">${escaparHTML(evento.descripcion)}</p>` : '';
-    // Indicador visual de si ya está en cartelera o sigue en borrador
-    // Solo mostrar estado en eventos nuevos (enCartelera definido explicitamente);
-    // los eventos base tienen enCartelera=undefined y no muestran nada.
     const etiquetaCartelera = evento.enCartelera === true
         ? '<span class="tag-sqlite" style="background:rgba(76,175,80,0.9);">✅ En cartelera</span>'
         : (evento.enCartelera === false
@@ -220,41 +208,36 @@ async function eliminarEventoPublicado(id) {
     if (id.startsWith('sqlite_')) {
         const sqliteId = id.replace('sqlite_', '');
         try {
-            const respuesta = await fetch(API_EVENTOS_URL + '/' + sqliteId, { 
-                method: 'DELETE', 
-                credentials: 'include' 
+            const respuesta = await fetch(API_EVENTOS_URL + '/' + sqliteId, {
+                method: 'DELETE',
+                credentials: 'include'
             });
-            
+
             if (respuesta.status === 404) {
                 console.warn('El evento no se encontró en la base de datos, se procederá a limpiar la caché local.');
             } else if (!respuesta.ok) {
                 const data = await respuesta.json();
                 alert('No se puede eliminar: ' + (data.error || 'El evento tiene datos vinculados.'));
-                return; 
+                return;
             }
         } catch (err) {
             console.warn('Error de conexión, forzando limpieza local...', err);
         }
     }
 
-    // 1. Registro interno de eventos eliminados en localStorage
     registrarEventoEliminado(id);
-    
-    // 2. Actualizamos la lista principal de publicados filtrando el ID problemático
+
     const eventos = obtenerEventosPublicados().filter(evento => evento.id !== id && evento.sqliteId != id);
     guardarEventosPublicados(eventos);
 
-    // 3. Eliminamos el rastro en el almacenamiento local de proveedores
     const proveedoresData = JSON.parse(localStorage.getItem('proveedores_data') || '{}');
     delete proveedoresData[id];
     localStorage.setItem('proveedores_data', JSON.stringify(proveedoresData));
 
-    // 4. Eliminamos de la cartelera del usuario por si acaso
     const cartelera = JSON.parse(localStorage.getItem('cartelera_usuario') || '[]');
     const carteleraFiltrada = cartelera.filter(c => c.id !== id && c.sqliteId != id);
     localStorage.setItem('cartelera_usuario', JSON.stringify(carteleraFiltrada));
 
-    // 5. Limpieza visual de la interfaz
     limpiarDatosEvento(id);
     renderEventosPublicados();
     actualizarSelectRider();
@@ -316,16 +299,29 @@ function renderEventosPublicados() {
     if (!contenedor) return;
 
     contenedor.querySelectorAll('.evento-dinamico').forEach(evento => evento.remove());
-    const eventos = obtenerEventosPublicados();
+    let eventos = obtenerEventosPublicados();
+
+    const selectCiudad = document.getElementById('selectFiltroCiudad');
+    if (selectCiudad && selectCiudad.value) {
+        const ciudadSeleccionada = selectCiudad.value.toLowerCase();
+        eventos = eventos.filter(evento => {
+            return evento.fechas.some(f => f.toLowerCase().includes(ciudadSeleccionada));
+        });
+    }
+
     contenedor.insertAdjacentHTML('beforeend', eventos.map(crearTarjetaEvento).join(''));
+}
+
+function filtrarEventosPorCiudad() {
+    renderEventosPublicados();
 }
 
 function actualizarVisibilidadFormularioEvento() {
     const formulario = document.querySelector('.form-publicar-evento');
     if (!formulario) return;
-
     formulario.style.display = riderFiltroActual ? 'none' : 'block';
 }
+
 function actualizarSelectRider() {
     const select = document.getElementById('selectArtistaRider');
     if (!select) return;
@@ -347,8 +343,6 @@ function actualizarSelectRider() {
         if (valorActual) select.value = valorActual;
     }
 
-    // Cargar el panel de género para el artista que quedó seleccionado
-    // (módulo de género musical, ver sección dedicada más abajo).
     if (select.value) cargarGeneroEnPanel(select.value);
 }
 
@@ -401,8 +395,6 @@ function sincronizarEventoBaseVistaUsuario(id, cambios) {
 }
 
 function sincronizarEventoVistaUsuario(id, cambios) {
-    // Solo sincronizar si el evento ya está en cartelera_usuario
-    // (es decir, ya fue enviado a cartelera por el módulo de Proveedores)
     const cartelera = JSON.parse(localStorage.getItem('cartelera_usuario')) || [];
     let actualizado = false;
     const nuevaCartelera = cartelera.map(evento => {
@@ -449,7 +441,6 @@ async function actualizarEventoSQLite(evento) {
 
 function formatearFechaEvento(valor) {
     if (!valor) return '';
-
     const fecha = new Date(valor + 'T00:00:00');
     return fecha.toLocaleDateString('es-CO', {
         day: '2-digit',
@@ -461,7 +452,6 @@ function formatearFechaEvento(valor) {
 function limpiarFormularioEvento() {
     document.getElementById('nuevoEventoNombre').value = '';
     document.getElementById('nuevoEventoTipo').value = '';
-    document.getElementById('nuevoEventoLugar').value = '';
     document.getElementById('nuevoEventoHora').value = '';
     document.getElementById('nuevoEventoFecha1').value = '';
     document.getElementById('nuevoEventoFecha2').value = '';
@@ -475,8 +465,13 @@ function limpiarFormularioEvento() {
 function publicarEventoNuevo() {
     const nombre = document.getElementById('nuevoEventoNombre').value.trim();
     const tipo = document.getElementById('nuevoEventoTipo').value;
-    const lugar = document.getElementById('nuevoEventoLugar').value;
     const hora = document.getElementById('nuevoEventoHora').value;
+
+    // ✅ FIX: leer el texto visible del <select id="localidadEvento">
+    // (antes leía de 'nuevoEventoLugar' que NO existe en el HTML, dejando lugar vacío)
+    const selectLocalidad = document.getElementById('localidadEvento');
+    const lugar = selectLocalidad ? selectLocalidad.options[selectLocalidad.selectedIndex].text : '';
+
     const fechas = [
         document.getElementById('nuevoEventoFecha1').value,
         document.getElementById('nuevoEventoFecha2').value,
@@ -504,7 +499,6 @@ function publicarEventoNuevo() {
 
         const agendaAPI = fechasRaw.map(f => ({ fecha: f, hora: hora, lugar: lugar }));
 
-        // 1. Persistir en SQLite vía Flask
         let sqliteId    = null;
         let idFinal     = 'evento_' + Date.now();
         let imagenGuardar = IMAGEN_EVENTO_SQLITE;
@@ -532,9 +526,6 @@ function publicarEventoNuevo() {
             console.warn('Flask no disponible, evento queda solo en localStorage:', err);
         }
 
-        // 2. Guardar en localStorage como BORRADOR (sin enCartelera).
-        //    El evento NO llega a cartelera_usuario hasta que el módulo de
-        //    Proveedores complete el proceso y active enCartelera: true.
         const eventos     = obtenerEventosPublicados();
         const nuevoEvento = {
             id:          idFinal,
@@ -548,7 +539,7 @@ function publicarEventoNuevo() {
             fechas:      fechas,
             imagen:      imagenGuardar,
             descripcion: descripcion,
-            enCartelera: false   // <-- borrador: requiere proceso de proveedores
+            enCartelera: false
         };
         eventos.push(nuevoEvento);
 
@@ -559,15 +550,9 @@ function publicarEventoNuevo() {
             guardarEventosPublicados(eventos);
         }
 
-        // 2b. Si se eligió un género musical en el formulario, lo guardamos
-        // vinculado a este artista/evento (vía API con fallback local).
         if (generoSeleccionado) {
             guardarGeneroParaArtista(idFinal, generoSeleccionado);
         }
-
-        // 3. cartelera_usuario NO se toca aquí.
-        //    El evento llega a la vista de usuario únicamente cuando el
-        //    módulo de Proveedores llame a enviarEventoACartelera(id).
 
         renderEventosPublicados();
         actualizarSelectRider();
@@ -584,11 +569,6 @@ function publicarEventoNuevo() {
     lector.readAsDataURL(archivo);
 }
 
-/**
- * Envía un evento a la cartelera de usuario.
- * Llamar desde el módulo de Proveedores tras completar el proceso.
- * Marca enCartelera: true en eventos_publicados y escribe en cartelera_usuario.
- */
 async function enviarEventoACartelera(id) {
     if (id.startsWith('sqlite_')) {
         const sqliteId = id.replace('sqlite_', '');
@@ -626,14 +606,10 @@ async function enviarEventoACartelera(id) {
         localStorage.setItem('cartelera_usuario', JSON.stringify(cartelera));
     }
 
-    renderEventosPublicados(); 
+    renderEventosPublicados();
     return true;
 }
 
-/**
- * Quita un evento de la cartelera de usuario sin eliminarlo del Booking.
- * Útil si el administrador necesita retirar un evento publicado.
- */
 async function quitarEventoDeCartelera(id) {
     if (id.startsWith('sqlite_')) {
         const sqliteId = id.replace('sqlite_', '');
@@ -664,13 +640,11 @@ async function quitarEventoDeCartelera(id) {
     renderEventosPublicados();
 }
 
-
 function volverAdministrador() {
     localStorage.setItem('admin_entrar_menu', 'true');
-    // Flask siempre sirve el panel admin en /web/admin/ sin importar
-    // donde este alojada la carpeta fisica en el disco.
     window.location.href = '/web/admin/';
 }
+
 function obtenerNombreArtista(id) {
     const tarjeta = document.getElementById(id);
     return tarjeta ? tarjeta.querySelector('h3').innerText : id;
@@ -749,9 +723,6 @@ function limpiarImagenesBase64LocalStorage() {
 }
 
 async function verificarRolAdmin() {
-    // Pregunta al servidor Flask qué rol tiene la sesión activa.
-    // Si es rol 1 (admin), muestra el botón "Menu administrador".
-    // Si no hay sesión o el rol no es admin, el botón permanece oculto.
     try {
         const respuesta = await fetch('/api/sesion', { credentials: 'include' });
         if (!respuesta.ok) return;
@@ -761,11 +732,9 @@ async function verificarRolAdmin() {
             if (btn) btn.style.display = '';
         }
     } catch (e) {
-        // Flask no disponible: el botón permanece oculto (comportamiento seguro)
         console.warn('No se pudo verificar el rol de sesión:', e);
     }
 }
-
 
 async function cerrarSesion() {
     localStorage.removeItem("usuarioLogueado");
@@ -791,8 +760,6 @@ window.onload = function () {
         }
     });
 
-    // Listener del select de rider: al cambiar de artista, refrescar
-    // el panel de género musical (módulo de género, ver sección dedicada).
     const selectRider = document.getElementById('selectArtistaRider');
     if (selectRider) {
         selectRider.addEventListener('change', function () {
@@ -1138,7 +1105,6 @@ async function vincularRider() {
         const resultado = await respuesta.json();
         if (!respuesta.ok || !resultado.ok) throw new Error(resultado.error || 'No se pudo guardar el rider.');
 
-        // Respaldo local del género por si la API no estuviera disponible la próxima vez.
         if (generoSeleccionado) guardarGeneroEnLocalStorage(artId, generoSeleccionado);
 
         fileInput.value = '';
@@ -1187,10 +1153,7 @@ async function actualizarTablaRider() {
 
     cuerpo.innerHTML = artistas.map(a => {
         const registro = ridersPorArtista[a.id] || null;
-        // tiene_archivo viene del backend; si la API no respondió, no mostramos archivo.
         const archivo = registro && registro.tiene_archivo ? registro : null;
-        // El género puede existir aunque todavía no haya archivo subido,
-        // o puede venir solo de localStorage si la API no respondió.
         const genero = (registro && registro.genero) || obtenerGeneroEnLocalStorage(a.id) || '—';
         const eventoPublicado = obtenerEventoPublicadoPorId(a.id);
         const enCartelera = eventoPublicado ? eventoPublicado.enCartelera === true : false;
@@ -1288,11 +1251,7 @@ window.onclick = function (event) {
 };
 
 /* ============================================================
-   MÓDULO GÉNERO MUSICAL POR RIDER (integrado desde versión anterior)
-   ------------------------------------------------------------
-   Se guarda vía API (PUT /api/riders/<id>/genero) en la tabla
-   Rider_Archivo (columna Genero). Si Flask no responde, se hace
-   fallback a localStorage para no perder el dato en uso local.
+   MÓDULO GÉNERO MUSICAL POR RIDER
    ============================================================ */
 
 const CLAVE_GENEROS_RIDER_LOCAL = 'rider_generos';
@@ -1311,12 +1270,6 @@ function guardarGeneroEnLocalStorage(artistaId, genero) {
     localStorage.setItem(CLAVE_GENEROS_RIDER_LOCAL, JSON.stringify(datos));
 }
 
-/**
- * Guarda el género de un artista/evento. Intenta primero la API
- * (PUT /api/riders/<id>/genero, no requiere que ya exista un archivo
- * de rider subido) y, si falla, lo deja igualmente en localStorage
- * como respaldo para que no se pierda en el uso local.
- */
 async function guardarGeneroParaArtista(artistaId, genero) {
     guardarGeneroEnLocalStorage(artistaId, genero);
     try {
@@ -1330,7 +1283,6 @@ async function guardarGeneroParaArtista(artistaId, genero) {
     }
 }
 
-/** Maneja el clic sobre un "chip" de género musical en el panel del rider. */
 function seleccionarGenero(labelEl) {
     document.querySelectorAll('.genero-chip').forEach(chip => chip.classList.remove('seleccionado'));
     labelEl.classList.add('seleccionado');
@@ -1351,8 +1303,6 @@ function seleccionarGenero(labelEl) {
 
     actualizarBadgeGenero();
 
-    // Persistir de inmediato para el artista actualmente seleccionado en
-    // el panel de rider (si hay uno activo).
     const select = document.getElementById('selectArtistaRider');
     const artistaId = select ? select.value : null;
     const generoActual = obtenerGeneroSeleccionado();
@@ -1361,7 +1311,6 @@ function seleccionarGenero(labelEl) {
     }
 }
 
-/** Lee qué género está seleccionado actualmente en el panel (chips + "Otro"). */
 function obtenerGeneroSeleccionado() {
     const radio = document.querySelector('input[name="generoMusical"]:checked');
     if (!radio) return '';
@@ -1386,7 +1335,6 @@ function actualizarBadgeGenero() {
     }
 }
 
-/** Limpia toda selección de género (usado al limpiar el formulario de publicar evento). */
 function limpiarSeleccionGenero() {
     document.querySelectorAll('.genero-chip').forEach(chip => chip.classList.remove('seleccionado'));
     document.querySelectorAll('input[name="generoMusical"]').forEach(r => r.checked = false);
@@ -1398,15 +1346,8 @@ function limpiarSeleccionGenero() {
     if (badge) badge.style.display = 'none';
 }
 
-/**
- * Carga en el panel de chips el género ya guardado para un artista/evento.
- * Se llama cada vez que cambia el artista seleccionado en el módulo Rider
- * (select, saltarARaider, actualizarSelectRider, listener de 'change').
- * Prioriza el dato de la API; si no llegó aún o no está disponible, usa
- * el respaldo de localStorage.
- */
 async function cargarGeneroEnPanel(artistaId) {
-    if (!document.querySelector('input[name="generoMusical"]')) return; // panel no presente en este HTML
+    if (!document.querySelector('input[name="generoMusical"]')) return;
 
     limpiarSeleccionGenero();
     if (!artistaId) return;
@@ -1454,6 +1395,5 @@ async function cargarGeneroEnPanel(artistaId) {
 }
 
 function alternarEvento() {
-  // Ruta limpia definida en tu app.py para Proveedores
-  window.location.href = "/web/proveedores/"; 
+    window.location.href = "/web/proveedores/";
 }

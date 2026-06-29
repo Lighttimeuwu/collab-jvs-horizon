@@ -25,30 +25,39 @@
 
 <nav class="nav-modulos">
     <button class="btn-nav active" id="btn-booking" onclick="mostrarModulo('booking')">🛒 CARTELERA</button>
-    <button class="btn-nav" id="btn-raider" onclick="abrirRaiderGeneral()">📄 MÓDULO TÉCNICO (RAIDER)</button>
+    <button class="btn-nav" id="btn-raider" onclick="mostrarModulo('raider')">📄 MÓDULO TÉCNICO (RAIDER)</button>
     <button class="btn-nav" id="btn-admin" onclick="volverAdministrador()" style="display:none;">Menu administrador</button>
     <button class="btn-nav btn-volver-usuario" onclick="window.location.href='/web/app/'">🏠 Volver a Eventos</button>
-</nav>
+
 </nav>
 
 <!-- MÓDULO BOOKING -->
 <div id="modulo-booking" class="modulo active">
+    
+    <div class="filtro-ciudad-container" style="padding: 20px; text-align: center;">
+        <label for="selectFiltroCiudad" style="color: white; font-weight: bold; margin-right: 10px;">Filtrar por Ciudad:</label>
+        <select id="selectFiltroCiudad" onchange="renderEventosPublicados()" style="padding: 8px; border-radius: 5px; font-size: 14px;">
+            <option value="">Todas las ciudades</option>
+            <option value="Bogotá">Bogotá</option>
+            <option value="Medellín">Medellín</option>
+            <option value="Cali">Cali</option>
+        </select>
+    </div> 
+    
     <div class="container">
-        <!-- Los eventos se cargan dinámicamente desde la base de datos -->
-    </div>
-</div>
+        </div>
 
-<!-- MÓDULO RAIDER -->
+</div> 
+
 <div id="modulo-raider" class="modulo">
-    <div class="panel-raider">
-        <h2 style="color:#c50b0b; border-bottom:2px solid #333;">Gestión de Requerimientos Técnicos</h2>
+    <div class="panel-raider" style="background: white; padding: 30px; border-radius: 8px; margin: 20px;">
+        <h2 style="color:#c50b0b; border-bottom:2px solid #333; padding-bottom: 10px;">Gestión de Requerimientos Técnicos</h2>
         <p>Selecciona un artista, elige su género musical y vincula su Rider (.pdf, .doc):</p>
 
-        <!-- ★ PANEL GÉNERO MUSICAL ★ -->
-        <div class="panel-genero">
+        <div class="panel-genero" style="border: 1px solid #ddd; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
             <h3>🎵 Género Musical del Artista / Evento</h3>
 
-            <div class="genero-grid" id="generoGrid">
+            <div class="genero-grid" id="generoGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-bottom: 15px;">
                 <label class="genero-chip" onclick="seleccionarGenero(this)">
                     <input type="radio" name="generoMusical" value="Reggaeton"> Reggaeton
                 </label>
@@ -87,30 +96,20 @@
                 </label>
             </div>
 
-            <!-- Campo "Otro" género personalizado -->
-            <div class="genero-otro-campo" id="generoOtroCampo">
+            <div class="genero-otro-campo" id="generoOtroCampo" style="display: none; margin-bottom: 10px;">
                 <span>🎶</span>
-                <input
-                    type="text"
-                    id="generoOtroTexto"
-                    placeholder="Escribe el género musical..."
-                    oninput="actualizarBadgeGenero()"
-                    maxlength="60"
-                >
+                <input type="text" id="generoOtroTexto" placeholder="Escribe el género musical..." oninput="actualizarBadgeGenero()" maxlength="60" style="padding: 8px; width: 80%;">
             </div>
 
-            <!-- Badge preview -->
-            <div id="generoBadge" style="display:none;">
+            <div id="generoBadge" style="display:none; margin-top: 10px;">
                 <span class="genero-badge-preview" id="generoBadgeTexto">🎵 —</span>
             </div>
         </div>
-        <!-- ★ FIN PANEL GÉNERO ★ -->
-
-        <div class="form-publicar-evento">
+        <div class="form-publicar-evento" style="border: 1px solid #ccc; padding: 20px; border-radius: 6px; margin-bottom: 20px; background: #f9f9f9;">
             <h3>Publicar nuevo evento</h3>
-            <div class="form-grid-evento">
-                <input type="text" id="nuevoEventoNombre" placeholder="Nombre del evento o artista">
-                <select id="nuevoEventoTipo">
+            <div class="form-grid-evento" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                <input type="text" id="nuevoEventoNombre" placeholder="Nombre del evento o artista" style="padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+                <select id="nuevoEventoTipo" style="padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
                     <option value="">Selecciona tipo de evento</option>
                     <option>Concierto</option>
                     <option>Festivales</option>
@@ -120,49 +119,48 @@
                     <option>RAVE</option>
                     <option>Evento Tecnho</option>
                 </select>
-                <select id="nuevoEventoLugar">
-                    <option value="">Selecciona una localidad</option>
-                    <option>Movistar Arena</option>
-                    <option>Hotel Paradise</option>
-                    <option>Pradera Box</option>
-                    <option>Club Campestre</option>
-                    <option>Trisquel Bar</option>
-                    <option>Aurora Discoteca</option>
-                    <option>Plaza mayor</option>
-                    <option>Finca Villa Sol</option>
-                    <option>Parque Simon Bolivar</option>
-                    <option>Vintage Disco</option>
+                <select id="localidadEvento" style="padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+                    <option value="1">Movistar Arena (Bogotá)</option>
+                    <option value="2">Parque Simón Bolívar (Bogotá)</option>
+                    <option value="3">Coliseo MedPlus (Bogotá)</option>
+                    <option value="4">Centro de Eventos La Macarena (Medellín)</option>
+                    <option value="5">Plaza Mayor (Medellín)</option>
+                    <option value="6">Centro de Eventos Valle del Pacífico (Cali)</option>
+                    <option value="7">Arena Cañaveralejo (Cali)</option>
+                    <option value="8">Centro de Eventos Puerta de Oro (Barranquilla)</option>
+                    <option value="9">Estadio Romelio Martínez (Barranquilla)</option>
+                    <option value="10">Plaza de la Paz (Barranquilla)</option>
                 </select>
-                <input type="time" id="nuevoEventoHora" title="Hora del Evento" aria-label="Hora del Evento">
-                <input type="date" id="nuevoEventoFecha1">
-                <input type="date" id="nuevoEventoFecha2">
-                <input type="date" id="nuevoEventoFecha3">
-                <input type="file" id="nuevoEventoFoto" accept="image/*">
-                <textarea id="nuevoEventoDescripcion" rows="4" placeholder="Descripción del evento (visible para el público)..." style="grid-column: 1 / -1; resize: vertical;"></textarea>
+                <input type="time" id="nuevoEventoHora" title="Hora del Evento" aria-label="Hora del Evento" style="padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+                <input type="date" id="nuevoEventoFecha1" style="padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+                <input type="date" id="nuevoEventoFecha2" style="padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+                <input type="date" id="nuevoEventoFecha3" style="padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+                <input type="file" id="nuevoEventoFoto" accept="image/*" style="padding: 8px;">
+                <textarea id="nuevoEventoDescripcion" rows="4" placeholder="Descripción del evento (visible para el público)..." style="grid-column: 1 / -1; resize: vertical; padding: 8px; border-radius: 4px; border: 1px solid #ccc;"></textarea>
             </div>
-            <button class="btn btn-publicar-evento" onclick="publicarEventoNuevo()">Publicar evento</button>
+            <button class="btn btn-publicar-evento" onclick="publicarEventoNuevo()" style="background:#007BFF; color:white; border:none; padding: 10px 20px; border-radius: 4px; cursor: pointer;">Publicar evento</button>
         </div>
 
-        <div style="margin:20px 0; display:flex; gap:10px; align-items:center;">
-            <select id="selectArtistaRider" style="padding:10px; border-radius:5px; flex-grow:1;">
-                <!-- Las opciones se cargan dinámicamente -->
-            </select>
+        <div style="margin:20px 0; display:flex; gap:10px; align-items:center; background: #eee; padding: 15px; border-radius: 6px;">
+            <select id="selectArtistaRider" style="padding:10px; border-radius:5px; flex-grow:1; border: 1px solid #ccc;">
+                </select>
             <input type="file" id="inputArchivoRider">
-            <button class="btn" onclick="vincularRider()" style="margin:0; background:#4CAF50;">Guardar Rider</button>
+            <button class="btn" onclick="vincularRider()" style="margin:0; background:#4CAF50; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer;">Guardar Rider</button>
         </div>
 
-        <table class="tabla-raider">
+        <table class="tabla-raider" style="width: 100%; border-collapse: collapse; margin-top: 20px; text-align: left;">
             <thead>
-                <tr>
-                    <th>Artista</th>
-                    <th>Género Musical</th>
-                    <th>Estado Documento</th>
-                    <th>Archivo Vinculado</th>
-                    <th>Abrir</th>
-                    <th>Acción</th>
+                <tr style="background-color: #f2f2f2; border-bottom: 2px solid #ddd;">
+                    <th style="padding: 10px;">Artista</th>
+                    <th style="padding: 10px;">Género Musical</th>
+                    <th style="padding: 10px;">Estado Documento</th>
+                    <th style="padding: 10px;">Archivo Vinculado</th>
+                    <th style="padding: 10px;">Abrir</th>
+                    <th style="padding: 10px;">Acción</th>
                 </tr>
             </thead>
-            <tbody id="cuerpoTablaRider"></tbody>
+            <tbody id="cuerpoTablaRider">
+                </tbody>
         </table>
     </div>
 </div>

@@ -35,18 +35,30 @@ def asegurar_tabla_personal_tecnico(cursor):
 
 
 # 1. LISTAR EVENTOS
-def listar_eventos():
-    """Trae la lista basica de todos los eventos programados."""
+def listar_eventos(ciudad=None):
+    """Trae la lista basica de todos los eventos programados, permitiendo filtrar por ciudad."""
     conexion = conectar()
     cursor = conexion.cursor()
     asegurar_columnas_eventos(cursor)
     conexion.commit()
 
-    cursor.execute("""
-        SELECT E.Evento_Id, E.Nombre, E.Fecha, E.Descripcion, E.Hora, U.Nombre, E.Imagen, E.Publicado
-        FROM Evento E
-        LEFT JOIN Ubicacion U ON E.Ubicacion_Id = U.Ubicacion_Id
-    """)
+    # ✅ FIX: La query completa se escribe en ambas ramas.
+    # El patrón de ciudad NO usa paréntesis para ser compatible con
+    # ubicaciones antiguas ("Movistar Arena") y nuevas ("Movistar Arena (Bogotá)").
+    if ciudad:
+        patron_busqueda = f"%{ciudad}%"
+        cursor.execute("""
+            SELECT E.Evento_Id, E.Nombre, E.Fecha, E.Descripcion, E.Hora, U.Nombre, E.Imagen, E.Publicado
+            FROM Evento E
+            LEFT JOIN Ubicacion U ON E.Ubicacion_Id = U.Ubicacion_Id
+            WHERE U.Nombre LIKE ?
+        """, (patron_busqueda,))
+    else:
+        cursor.execute("""
+            SELECT E.Evento_Id, E.Nombre, E.Fecha, E.Descripcion, E.Hora, U.Nombre, E.Imagen, E.Publicado
+            FROM Evento E
+            LEFT JOIN Ubicacion U ON E.Ubicacion_Id = U.Ubicacion_Id
+        """)
 
     datos = cursor.fetchall()
     conexion.close()
@@ -166,11 +178,6 @@ def eliminar_evento(evento_id):
     """
     Elimina un evento por su ID, junto con sus filas relacionadas en
     Evento_Proveedor y Personal_Tecnico_Evento.
-
-    Antes solo se borraba de Evento, dejando huerfanos los proveedores y el
-    personal tecnico asignados a ese Evento_Id. Esas filas huerfanas seguian
-    apareciendo en el modulo de Proveedores (que las consulta por Evento_Id)
-    aunque el evento ya no existiera en Booking.
     """
     conexion = conectar()
     cursor = conexion.cursor()
@@ -196,12 +203,19 @@ def obtener_o_crear_ubicacion(cursor, nombre_ubicacion):
     if not ubicacion:
         return None
 
-    cursor.execute("SELECT Ubicacion_Id FROM Ubicacion WHERE LOWER(Nombre) = LOWER(?)", (ubicacion,))
+    # ✅ FIX: Normaliza "Movistar Arena (Bogotá)" → "Movistar Arena"
+    # para que haga match con los nombres existentes en la tabla Ubicacion.
+    nombre_normalizado = ubicacion.split("(")[0].strip()
+
+    cursor.execute(
+        "SELECT Ubicacion_Id FROM Ubicacion WHERE LOWER(Nombre) = LOWER(?)",
+        (nombre_normalizado,)
+    )
     existente = cursor.fetchone()
     if existente:
         return existente[0]
 
-    cursor.execute("INSERT INTO Ubicacion (Nombre) VALUES (?)", (ubicacion,))
+    cursor.execute("INSERT INTO Ubicacion (Nombre) VALUES (?)", (nombre_normalizado,))
     return cursor.lastrowid
 
 
@@ -329,8 +343,8 @@ def consultar_aforo():
     conexion.commit()
 
     cursor.execute("""
-        SELECT E.Nombre, F.Fecha, F.Hora, SUM(FL.Stock) as Aforo_Total,
-               COALESCE(F.Ciudad, U.Nombre) as Lugar
+        SELECT E.Evento_Id, E.Nombre, F.Fecha, F.Hora, SUM(FL.Stock) as Aforo_Total,
+            COALESCE(F.Ciudad, U.Nombre) as Lugar
         FROM Evento E
         LEFT JOIN Ubicacion U ON E.Ubicacion_Id = U.Ubicacion_Id
         JOIN Evento_Boleta EB ON E.Evento_Id = EB.Evento_Id
@@ -450,6 +464,7 @@ def eliminar_personal_tecnico(personal_id):
     finally:
         conexion.close()
 
+
 def guardar_imagen_evento(evento_id, imagen_base64):
     """
     Guarda o actualiza la imagen (base64 o URL) de un evento existente.
@@ -476,21 +491,20 @@ def guardar_imagen_evento(evento_id, imagen_base64):
     finally:
         conexion.close()
 
+
 def despublicar_eventos_vencidos():
     """
     Revisa todos los eventos publicados y despublica los que ya no tienen
     ninguna función futura (todas sus fechas pasaron o no tienen funciones).
-    Se puede llamar desde un endpoint de cron o al inicio de la app.
     """
     from datetime import date
-    hoy = date.today().isoformat()   # "YYYY-MM-DD"
+    hoy = date.today().isoformat()
 
     conexion = conectar()
     cursor = conexion.cursor()
     try:
         asegurar_columnas_eventos(cursor)
 
-        # Eventos publicados que tienen al menos una función con fecha >= hoy
         cursor.execute("""
             SELECT DISTINCT E.Evento_Id
             FROM Evento E
@@ -504,7 +518,6 @@ def despublicar_eventos_vencidos():
         """, (hoy,))
         con_fechas_vigentes = {fila[0] for fila in cursor.fetchall()}
 
-        # Despublicar los que NO tienen ninguna fecha vigente
         cursor.execute("SELECT Evento_Id FROM Evento WHERE Publicado = 1")
         todos_publicados = [fila[0] for fila in cursor.fetchall()]
 
@@ -516,7 +529,7 @@ def despublicar_eventos_vencidos():
             )
             conexion.commit()
 
-        return vencidos   # lista de IDs despublicados
+        return vencidos
     except Exception:
         conexion.rollback()
         raise
