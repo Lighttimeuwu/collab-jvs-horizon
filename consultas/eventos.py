@@ -461,3 +461,50 @@ def guardar_imagen_evento(evento_id, imagen_base64):
         raise
     finally:
         conexion.close()
+
+def despublicar_eventos_vencidos():
+    """
+    Revisa todos los eventos publicados y despublica los que ya no tienen
+    ninguna función futura (todas sus fechas pasaron o no tienen funciones).
+    Se puede llamar desde un endpoint de cron o al inicio de la app.
+    """
+    from datetime import date
+    hoy = date.today().isoformat()   # "YYYY-MM-DD"
+
+    conexion = conectar()
+    cursor = conexion.cursor()
+    try:
+        asegurar_columnas_eventos(cursor)
+
+        # Eventos publicados que tienen al menos una función con fecha >= hoy
+        cursor.execute("""
+            SELECT DISTINCT E.Evento_Id
+            FROM Evento E
+            JOIN Funcion F ON F.Funcion_Id IN (
+                SELECT FL.Funcion_Id FROM Funcion_Localidad FL
+                JOIN Boleta B ON B.Funcion_Localidad_Id = FL.Funcion_Localidad_Id
+                JOIN Evento_Boleta EB ON EB.Boleta_Id = B.Boleta_Id
+                WHERE EB.Evento_Id = E.Evento_Id
+            )
+            WHERE E.Publicado = 1 AND F.Fecha >= ?
+        """, (hoy,))
+        con_fechas_vigentes = {fila[0] for fila in cursor.fetchall()}
+
+        # Despublicar los que NO tienen ninguna fecha vigente
+        cursor.execute("SELECT Evento_Id FROM Evento WHERE Publicado = 1")
+        todos_publicados = [fila[0] for fila in cursor.fetchall()]
+
+        vencidos = [eid for eid in todos_publicados if eid not in con_fechas_vigentes]
+        if vencidos:
+            cursor.executemany(
+                "UPDATE Evento SET Publicado = 0 WHERE Evento_Id = ?",
+                [(eid,) for eid in vencidos]
+            )
+            conexion.commit()
+
+        return vencidos   # lista de IDs despublicados
+    except Exception:
+        conexion.rollback()
+        raise
+    finally:
+        conexion.close()

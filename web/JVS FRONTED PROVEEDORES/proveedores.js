@@ -8,6 +8,24 @@ let currentEvent = null;            // Evento_Id (numero) del modulo de personal
 let currentEventName = "";
 let currentProviderEvent = null;    // Evento_Id (numero) del editor de proveedores abierto
 
+// Esperamos a que el HTML de la página cargue por completo
+document.addEventListener("DOMContentLoaded", () => {
+  // 1. Leemos los datos del usuario desde la memoria del navegador
+  const usuarioString = localStorage.getItem("usuarioLogueado");
+  
+  if (usuarioString) {
+    const usuario = JSON.parse(usuarioString);
+
+    // 2. Si el rol del usuario es 2, ocultamos el contenedor del botón admin
+    if (usuario.rol_id === 2) {
+      const adminArea = document.getElementById("adminReturnArea");
+      if (adminArea) {
+        adminArea.style.display = "none"; // Desaparece el botón
+      }
+    }
+  }
+});
+
 const FUNCIONES_TECNICAS = [
   "Bocinas y Subwoofers",
   "Consola de mezcla",
@@ -340,3 +358,25 @@ function volverAdministrador() {
 }
 
 window.addEventListener("DOMContentLoaded", cargarDatosIniciales);
+
+/* ========================
+   CERRAR SESIÓN
+   ======================== */
+async function cerrarSesion() {
+  try {
+    // 1. Llamar al endpoint del backend para destruir la sesión
+    await peticionJSON("/api/logout", { method: "POST" });
+    
+    // 2. Redirigir al usuario a la página de login
+    window.location.href = "/web/login/";
+  } catch (error) {
+    alert("Hubo un problema al cerrar la sesión: " + error.message);
+    // Opcional: Forzar la redirección en caso de error de red
+    window.location.href = "/web/login/";
+  }
+}
+
+function alternarEvento() {
+  // Ruta limpia definida en tu app.py para Booking (Rider)
+  window.location.href = "/web/booking/"; 
+}

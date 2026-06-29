@@ -191,7 +191,7 @@ function obtenerDetalleEvento(evento) {
   const horaFinal  = agendaBase.hora  || evento.hora  || detalle.hora  || "Hora no registrada";
   const lugarDePrimeraFecha = separarFechaLugar(fechaBase).lugar;
   const lugarFinal = lugarDePrimeraFecha || agendaBase.lugar || evento.lugar || detalle.lugar || "Ubicacion no registrada";
-  const descripcionFinal = evento.descripcion || detalle.descripcionGeneral
+  const descripcionFinal = evento.descripcion || evento.descripcionGeneral || detalle.descripcionGeneral
     || "Este evento publicado en la cartelera de Focus Producciones combina una propuesta artistica destacada con produccion profesional, proveedores asignados y una experiencia preparada para el publico.";
 
   return {
@@ -507,6 +507,7 @@ function normalizarEventoAPI(evento) {
     tipo:               "Evento SQLite",
     img:                imgReal,
     imagen:             imgReal,
+    descripcion:        evento.descripcion || evento.Descripcion || "",
     descripcionGeneral: evento.descripcion || evento.Descripcion || "Evento cargado desde SQLite mediante Flask."
   };
 }
@@ -514,6 +515,12 @@ function normalizarEventoAPI(evento) {
 async function cargarEventosAPI() {
   const contenedor = document.getElementById("listaEventosUsuario");
   if (!contenedor) return;
+
+  // Pedir al servidor que despublique en la DB los eventos cuyas fechas ya pasaron.
+  // Es silencioso: si falla (sin conexion, etc.) simplemente se omite.
+  try {
+    await fetch("/api/eventos/limpiar-vencidos", { method: "POST" });
+  } catch (_) {}
 
   try {
     const respuesta = await fetch("/api/eventos?publicados=1");

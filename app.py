@@ -7,7 +7,12 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path:
     sys.path.append(BASE_DIR)
 
-from consultas.eventos import actualizar_evento_desde_booking, consultar_aforo, listar_eventos, crear_evento_completo, publicar_evento, despublicar_evento, agregar_personal_tecnico, listar_personal_tecnico, eliminar_personal_tecnico
+from consultas.eventos import (
+    actualizar_evento_desde_booking, consultar_aforo, listar_eventos,
+    crear_evento_completo, publicar_evento, despublicar_evento,
+    agregar_personal_tecnico, listar_personal_tecnico, eliminar_personal_tecnico,
+    eliminar_evento, despublicar_eventos_vencidos
+)
 from consultas.usuarios import crear_usuario, validar_login, listar_usuarios_con_roles, listar_roles_catalogo, asignar_roles_usuario
 from consultas.asientos import consultar_asientos_ocupados, registrar_asientos_ocupados
 from consultas.ventas import listar_historial_ventas, registrar_venta_web, listar_ventas_usuario
@@ -23,12 +28,21 @@ app.secret_key = os.environ.get("FLASK_SECRET", "jvs-horizon-secret-2025")
 ROLES_ADMIN = {1, 2, 3}
 
 # ── Ajusta estas rutas si tus carpetas tienen otro nombre ──────────────────
-WEB_DIR     = os.path.join(BASE_DIR, "web")
-LOGIN_DIR   = os.path.join(WEB_DIR, "login")
-APP_DIR     = os.path.join(WEB_DIR, "app")
-ADMIN_DIR   = os.path.join(WEB_DIR, "JVS FRONTED ADMINISTRADOR")
-BOOKING_DIR = os.path.join(WEB_DIR, "JVS_FRONTED_BOOKING")
+WEB_DIR         = os.path.join(BASE_DIR, "web")
+LOGIN_DIR       = os.path.join(WEB_DIR, "login")
+APP_DIR         = os.path.join(WEB_DIR, "app")
+ADMIN_DIR       = os.path.join(WEB_DIR, "JVS FRONTED ADMINISTRADOR")
+BOOKING_DIR     = os.path.join(WEB_DIR, "JVS_FRONTED_BOOKING")
 PROVEEDORES_DIR = os.path.join(WEB_DIR, "JVS FRONTED PROVEEDORES")
+
+
+# ─── Limpiar eventos vencidos al arrancar ────────────────────────────────────
+# Despublica en la DB cualquier evento cuyas fechas ya pasaron,
+# antes de atender el primer request.
+try:
+    despublicar_eventos_vencidos()
+except Exception as _e:
+    print(f"[inicio] No se pudieron limpiar eventos vencidos: {_e}")
 
 
 # ─── Helpers de sesión ───────────────────────────────────────────────────────
@@ -352,7 +366,6 @@ def actualizar_imagen_evento_api(evento_id):
         return jsonify({"ok": False, "error": str(error)}), 500
 
 
-
 @app.put("/api/eventos/<int:evento_id>/publicar")
 def publicar_evento_api(evento_id):
     """Publica un evento (lo hace visible en la cartelera de usuarios). Solo admin."""
@@ -377,6 +390,23 @@ def despublicar_evento_api(evento_id):
         return jsonify({"ok": True, "mensaje": "Evento retirado de cartelera", "evento": convertir_evento_a_json(evento)})
     except ValueError as error:
         return jsonify({"ok": False, "error": str(error)}), 400
+    except Exception as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
+
+
+# ─── Limpieza automática de eventos vencidos (llamada desde el frontend) ─────
+
+@app.post("/api/eventos/limpiar-vencidos")
+def limpiar_eventos_vencidos_api():
+    """
+    Despublica en la DB todos los eventos cuyas fechas ya pasaron.
+    El frontend lo llama silenciosamente al cargar la cartelera,
+    para que los eventos vencidos desaparezcan en tiempo real
+    sin necesitar reiniciar Flask.
+    """
+    try:
+        vencidos = despublicar_eventos_vencidos()
+        return jsonify({"ok": True, "despublicados": vencidos})
     except Exception as error:
         return jsonify({"ok": False, "error": str(error)}), 500
 
@@ -640,8 +670,21 @@ def actualizar_genero_rider_api(artista_id):
 
 @app.delete("/api/riders/<artista_id>")
 def eliminar_rider_api(artista_id):
-    """Elimina el rider tecnico vinculado a un artista/evento."""
+    """
+    Elimina el rider tecnico vinculado a un artista/evento.
+    Si el artista_id corresponde a un evento SQLite (formato 'sqlite_X'),
+    tambien despublica el evento en la DB para que desaparezca
+    inmediatamente de la vista del usuario.
+    """
     try:
+        # Despublicar el evento en SQLite si el rider pertenece a uno
+        if artista_id.startswith("sqlite_"):
+            try:
+                evento_id = int(artista_id.replace("sqlite_", ""))
+                despublicar_evento(evento_id)
+            except Exception:
+                pass  # Si no existe o ya estaba despublicado, continuar igual
+
         eliminado = eliminar_rider(artista_id)
         if not eliminado:
             return jsonify({"ok": False, "error": "No hay rider vinculado para este artista"}), 404
@@ -649,6 +692,30 @@ def eliminar_rider_api(artista_id):
     except Exception as error:
         return jsonify({"ok": False, "error": str(error)}), 500
 
+
+@app.delete("/api/eventos/<int:evento_id>")
+def eliminar_evento_api(evento_id):
+    """
+    Elimina un evento de la DB. Solo admin.
+    Despublica primero para que desaparezca de la cartelera del usuario
+    antes del borrado fisico.
+    """
+    if not es_admin():
+        return jsonify({"ok": False, "error": "No autorizado"}), 403
+    try:
+        # Despublicar antes de borrar: garantiza que el evento
+        # desaparezca de /api/eventos?publicados=1 en ese instante
+        try:
+            despublicar_evento(evento_id)
+        except Exception:
+            pass  # Si no existia o ya estaba despublicado, continuar
+
+        eliminado = eliminar_evento(evento_id)
+        if not eliminado:
+            return jsonify({"ok": False, "error": "El evento no existe"}), 404
+        return jsonify({"ok": True, "mensaje": "Evento eliminado"})
+    except Exception as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
 
 
 if __name__ == "__main__":

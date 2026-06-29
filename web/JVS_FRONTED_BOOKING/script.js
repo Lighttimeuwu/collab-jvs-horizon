@@ -7,14 +7,7 @@ function urlRider(artistaId) { return API_RIDERS_URL + '/' + encodeURIComponent(
 function urlGeneroRider(artistaId) { return API_RIDERS_URL + '/' + encodeURIComponent(artistaId) + '/genero'; }
 const IMAGEN_EVENTO_SQLITE = 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?auto=format&fit=crop&w=900&q=80';
 
-const EVENTOS_BASE = [
-    { id: 'art1', n: 'Feid' },
-    { id: 'art2', n: 'Bad Bunny' },
-    { id: 'art3', n: 'Romeo Santos' },
-    { id: 'art4', n: 'Evento Techno' },
-    { id: 'art5', n: 'Karol G' },
-    { id: 'art6', n: 'Evento Rave' }
-];
+const EVENTOS_BASE = []; // Eventos hardcodeados eliminados; todo viene de la DB
 
 const LOCALIDADES_EVENTO = [
     'Movistar Arena',
@@ -70,6 +63,21 @@ function crearEventoBookingDesdeAPI(evento) {
 
 async function cargarEventosDesdeAPI() {
     try {
+        // Purgar del localStorage cualquier evento legado hardcodeado (art1–art6)
+        // que haya quedado de versiones anteriores. Solo se hace una vez: si ya
+        // no quedan entradas con id "art*", la operación es un no-op.
+        const eventosGuardados = obtenerEventosPublicados();
+        const sinLegados = eventosGuardados.filter(ev => !/^art\d+$/.test(ev.id));
+        if (sinLegados.length !== eventosGuardados.length) {
+            guardarEventosPublicados(sinLegados);
+        }
+        // Limpiar también las claves auxiliares de esos eventos legados
+        ['art1','art2','art3','art4','art5','art6'].forEach(id => {
+            localStorage.removeItem('reserva_' + id);
+            localStorage.removeItem('fecha_reserva_' + id);
+            localStorage.removeItem('inv_' + id);
+        });
+        localStorage.removeItem('eventos_base_eliminados');
         const respuesta = await fetch(API_EVENTOS_URL);
         if (!respuesta.ok) throw new Error('HTTP ' + respuesta.status);
 
@@ -80,8 +88,11 @@ async function cargarEventosDesdeAPI() {
         const eventosActuales = obtenerEventosPublicados();
         let huboCambios = false;
 
+        const eliminados = obtenerEventosEliminados();
         eventosAPI.forEach(eventoAPI => {
             const eventoBooking = crearEventoBookingDesdeAPI(eventoAPI);
+            // Si el usuario ya eliminó este evento, no volver a insertarlo
+            if (eliminados.includes(eventoBooking.id)) return;
             const indice = eventosActuales.findIndex(evento => evento.id === eventoBooking.id);
             if (indice >= 0) {
                 // Preservar enCartelera si ya estaba definido (no pisarlo con undefined)
@@ -191,9 +202,32 @@ function esEventoPublicado(id) {
     return obtenerEventosPublicados().some(evento => evento.id === id);
 }
 
-function eliminarEventoPublicado(id) {
-    if (!confirm('¿Eliminar este evento publicado?')) return;
+function obtenerEventosEliminados() {
+    return JSON.parse(localStorage.getItem('eventos_booking_eliminados') || '[]');
+}
 
+function registrarEventoEliminado(id) {
+    const eliminados = obtenerEventosEliminados();
+    if (!eliminados.includes(id)) {
+        eliminados.push(id);
+        localStorage.setItem('eventos_booking_eliminados', JSON.stringify(eliminados));
+    }
+}
+
+function eliminarEventoPublicado(id) {
+    if (!confirm('\u00bfEliminar este evento permanentemente?')) return;
+
+    // 1. Eliminar del backend (DB)
+    if (id.startsWith('sqlite_')) {
+        const sqliteId = id.replace('sqlite_', '');
+        fetch(API_EVENTOS_URL + '/' + sqliteId, { method: 'DELETE', credentials: 'include' })
+            .catch(err => console.warn('No se pudo eliminar del backend:', err));
+    }
+
+    // 2. Lista negra: nunca volver a mostrarlo aunque la API lo devuelva
+    registrarEventoEliminado(id);
+
+    // 3. Limpiar localStorage y UI
     const eventos = obtenerEventosPublicados().filter(evento => evento.id !== id);
     guardarEventosPublicados(eventos);
     limpiarDatosEvento(id);
@@ -408,6 +442,8 @@ function limpiarFormularioEvento() {
     document.getElementById('nuevoEventoFecha2').value = '';
     document.getElementById('nuevoEventoFecha3').value = '';
     document.getElementById('nuevoEventoFoto').value = '';
+    const descEl = document.getElementById('nuevoEventoDescripcion');
+    if (descEl) descEl.value = '';
     limpiarSeleccionGenero();
 }
 
@@ -422,6 +458,7 @@ function publicarEventoNuevo() {
         document.getElementById('nuevoEventoFecha3').value
     ].filter(Boolean).map(fecha => `${formatearFechaEvento(fecha)} - ${lugar}`);
     const archivo = document.getElementById('nuevoEventoFoto').files[0];
+    const descripcion = (document.getElementById('nuevoEventoDescripcion')?.value || '').trim();
 
     if (!nombre || !tipo || !lugar || !hora || fechas.length === 0 || !archivo) {
         alert('Completa nombre, tipo de evento, localidad, hora, al menos una fecha y una foto del evento.');
@@ -453,7 +490,7 @@ function publicarEventoNuevo() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     nombre:      nombre,
-                    descripcion: '',
+                    descripcion: descripcion,
                     hora:        hora,
                     lugar:       lugar,
                     imagen:      imagenBase64,
@@ -485,6 +522,7 @@ function publicarEventoNuevo() {
             horas:       fechas.map(() => horaFormateada),
             fechas:      fechas,
             imagen:      imagenGuardar,
+            descripcion: descripcion,
             enCartelera: false   // <-- borrador: requiere proceso de proveedores
         };
         eventos.push(nuevoEvento);
@@ -1376,4 +1414,9 @@ async function cargarGeneroEnPanel(artistaId) {
     }
 
     actualizarBadgeGenero();
+}
+
+function alternarEvento() {
+  // Ruta limpia definida en tu app.py para Proveedores
+  window.location.href = "/web/proveedores/"; 
 }

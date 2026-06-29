@@ -755,3 +755,39 @@ footer {
     box-shadow: 0 0 20px rgba(255,0,51,0.7);
     transform: scale(1.05);
 }
+
+/* ==========================================
+   ESTILO PARA EL BOTÓN DE ALTERNAR EVENTO
+   ========================================== */
+.btn-alternar-evento {
+  background: linear-gradient(135deg, #2f00ff, #ff4400);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(47, 0, 255, 0.4);
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px; /* Espacio por si le pones un ícono adentro */
+  margin: 10px;
+}
+
+/* Efecto al pasar el mouse por encima (Hover) */
+.btn-alternar-evento:hover {
+  background: linear-gradient(135deg, #ff4400, #2f00ff);
+  box-shadow: 0 6px 20px rgba(255, 68, 0, 0.6);
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+/* Efecto al hacer clic */
+.btn-alternar-evento:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 8px rgba(47, 0, 255, 0.4);
+}

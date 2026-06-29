@@ -1,5 +1,22 @@
 const API_USUARIOS_URL = "/api/usuarios";
 
+// Esperamos a que el HTML de la página cargue por completo
+document.addEventListener("DOMContentLoaded", () => {
+  // 1. Leemos los datos del usuario desde la memoria del navegador
+  const usuarioString = localStorage.getItem("usuarioLogueado");
+  
+  if (usuarioString) {
+    const usuario = JSON.parse(usuarioString);
+
+    // 2. Si el rol del usuario es 2, ocultamos el contenedor del botón admin
+    if (usuario.rol_id === 2) {
+      const adminArea = document.getElementById("adminReturnArea");
+      if (adminArea) {
+        adminArea.style.display = "none"; // Desaparece el botón
+      }
+    }
+  }
+});
 /* ========================
    GUARDIA: bloquear retroceso si hay sesión activa
    ======================== */
@@ -26,7 +43,7 @@ function mostrar(id) {
    LOGIN
    ======================== */
 
-const ROLES_ADMIN = [1, 2, 3];
+const ROLES_ADMIN = [1];
 
 async function login(evento) {
   if (evento) evento.preventDefault();
@@ -60,12 +77,23 @@ async function login(evento) {
       localStorage.setItem("usuarioLogueado", JSON.stringify(datos.usuario));
 
       const rolId = datos.usuario && datos.usuario.rol_id;
+      
+      // 1. Redirección específica para el Rol 2 (Va directo a Booking)
+      if (rolId === 2) {
+        window.location.href = "/web/booking/";
+        return;
+      }
+
+      // 2. Redirección para los Administradores
       if (ROLES_ADMIN.includes(rolId)) {
         localStorage.setItem("admin_sesion_activa", JSON.stringify(datos.usuario));
         window.location.href = "/web/admin/";
         return;
       }
+      
+      // 3. Redirección por defecto para cualquier otro usuario
       window.location.href = "/web/app/";
+      
     } else {
       error.innerText = datos.error || "Correo o contraseña incorrectos";
       error.style.display = "block";
