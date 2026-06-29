@@ -8,6 +8,7 @@ if ruta_raiz not in sys.path:
     sys.path.append(ruta_raiz)
 
 from utilidades.conexion import conectar
+from consultas.riders import asegurar_tabla_riders
 
 
 def asegurar_columnas_eventos(cursor):
@@ -176,16 +177,102 @@ def actualizar_evento(evento_id, nuevo_nombre, nueva_fecha):
 # 5. ELIMINAR EVENTO
 def eliminar_evento(evento_id):
     """
-    Elimina un evento por su ID, junto con sus filas relacionadas en
-    Evento_Proveedor y Personal_Tecnico_Evento.
+    Elimina un evento por su ID, junto con TODO lo que depende de el.
+
+    Tablas que referencian a Evento/Boleta/Funcion_Localidad/Funcion
+    (confirmadas con PRAGMA foreign_key_list sobre el esquema real):
+      - Evento_Artista       (Evento_Id -> Evento)
+      - Evento_Producto      (Evento_Id -> Evento)
+      - Evento_Proveedor     (Evento_Id -> Evento)
+      - Evento_Coordinador   (Evento_Id -> Evento)
+      - Personal_Tecnico_Evento (Evento_Id -> Evento)
+      - Evento_Boleta        (Evento_Id -> Evento, Boleta_Id -> Boleta)
+      - Detalle_Pago         (Funcion_Localidad_Id -> Funcion_Localidad)
+      - Boleta               (Funcion_Localidad_Id -> Funcion_Localidad)
+      - Funcion_Localidad    (Funcion_Id -> Funcion)
+      - Asiento_Ocupado      (sin FK declarada, pero referencia logica a Evento_Id)
+      - Rider_Archivo        (via 'sqlite_<Evento_Id>' como Artista_Id_Frontend)
+
+    Las filas de Boleta/Funcion_Localidad/Funcion/Detalle_Pago se ubican
+    siempre a traves de Evento_Boleta (la tabla puente de ESTE evento), por
+    lo que nunca se tocan funciones, boletas o pagos de otro evento.
     """
     conexion = conectar()
     cursor = conexion.cursor()
     try:
         asegurar_tabla_personal_tecnico(cursor)
 
+        # 1) Ubicar Boletas / Funcion_Localidad / Funcion que pertenecen a ESTE evento
+        cursor.execute("SELECT Boleta_Id FROM Evento_Boleta WHERE Evento_Id = ?", (evento_id,))
+        boleta_ids = [fila[0] for fila in cursor.fetchall()]
+
+        funcion_localidad_ids = []
+        funcion_ids = []
+        if boleta_ids:
+            placeholders = ",".join("?" * len(boleta_ids))
+            cursor.execute(
+                f"SELECT DISTINCT Funcion_Localidad_Id FROM Boleta WHERE Boleta_Id IN ({placeholders})",
+                boleta_ids
+            )
+            funcion_localidad_ids = [fila[0] for fila in cursor.fetchall() if fila[0] is not None]
+
+        if funcion_localidad_ids:
+            placeholders_fl = ",".join("?" * len(funcion_localidad_ids))
+            cursor.execute(
+                f"SELECT DISTINCT Funcion_Id FROM Funcion_Localidad WHERE Funcion_Localidad_Id IN ({placeholders_fl})",
+                funcion_localidad_ids
+            )
+            funcion_ids = [fila[0] for fila in cursor.fetchall() if fila[0] is not None]
+
+        # 2) Borrar TODO lo que cuelga de las Funcion_Localidad de este evento,
+        #    empezando por Detalle_Pago (pagos/ventas ya registrados)
+        if funcion_localidad_ids:
+            placeholders_fl = ",".join("?" * len(funcion_localidad_ids))
+            cursor.execute(
+                f"DELETE FROM Detalle_Pago WHERE Funcion_Localidad_Id IN ({placeholders_fl})",
+                funcion_localidad_ids
+            )
+
+        # 3) Evento_Boleta -> Boleta -> Funcion_Localidad -> Funcion
+        cursor.execute("DELETE FROM Evento_Boleta WHERE Evento_Id = ?", (evento_id,))
+
+        if boleta_ids:
+            placeholders = ",".join("?" * len(boleta_ids))
+            cursor.execute(f"DELETE FROM Boleta WHERE Boleta_Id IN ({placeholders})", boleta_ids)
+
+        if funcion_localidad_ids:
+            placeholders_fl = ",".join("?" * len(funcion_localidad_ids))
+            cursor.execute(
+                f"DELETE FROM Funcion_Localidad WHERE Funcion_Localidad_Id IN ({placeholders_fl})",
+                funcion_localidad_ids
+            )
+
+        if funcion_ids:
+            placeholders_f = ",".join("?" * len(funcion_ids))
+            cursor.execute(f"DELETE FROM Funcion WHERE Funcion_Id IN ({placeholders_f})", funcion_ids)
+
+        # 4) Todas las tablas puente que referencian directamente a Evento_Id
+        cursor.execute("DELETE FROM Evento_Artista WHERE Evento_Id = ?", (evento_id,))
+        cursor.execute("DELETE FROM Evento_Producto WHERE Evento_Id = ?", (evento_id,))
         cursor.execute("DELETE FROM Evento_Proveedor WHERE Evento_Id = ?", (evento_id,))
+        cursor.execute("DELETE FROM Evento_Coordinador WHERE Evento_Id = ?", (evento_id,))
         cursor.execute("DELETE FROM Personal_Tecnico_Evento WHERE Evento_Id = ?", (evento_id,))
+
+        # 5) Asientos ocupados ligados a este evento (no tiene FK declarada,
+        #    pero igual queda huerfana si no se limpia)
+        cursor.execute("DELETE FROM Asiento_Ocupado WHERE Evento_Id = ?", (evento_id,))
+
+        # 6) Rider tecnico vinculado. El frontend identifica los riders de
+        #    eventos guardados en SQLite con el id 'sqlite_<Evento_Id>'
+        #    (ver script.js: id: 'sqlite_' + evento.id), por eso se borra
+        #    usando esa misma clave compuesta.
+        asegurar_tabla_riders(cursor)
+        cursor.execute(
+            "DELETE FROM Rider_Archivo WHERE Artista_Id_Frontend = ?",
+            (f"sqlite_{evento_id}",)
+        )
+
+        # 7) Por ultimo, el evento en si
         cursor.execute("DELETE FROM Evento WHERE Evento_Id = ?", (evento_id,))
 
         conexion.commit()

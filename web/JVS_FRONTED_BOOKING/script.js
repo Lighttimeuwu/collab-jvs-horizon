@@ -204,7 +204,18 @@ function registrarEventoEliminado(id) {
 
 async function eliminarEventoPublicado(id) {
     if (!confirm('\u00bfEliminar este evento permanentemente?')) return;
+    await eliminarEventoCompleto(id);
+}
 
+/**
+ * Borrado COMPLETO de un evento: SQLite (Evento, Evento_Proveedor,
+ * Personal_Tecnico_Evento, Rider_Archivo, fechas/Funcion, Boleta) +
+ * limpieza de todo lo que vive en localStorage (proveedores, cartelera,
+ * reservas, invitados, etc). Se usa tanto desde Booking/Cartelera como
+ * desde el módulo RAIDER, para que "eliminar" sea siempre el mismo borrado
+ * total, sin dejar nada huérfano en ningún lado.
+ */
+async function eliminarEventoCompleto(id) {
     if (id.startsWith('sqlite_')) {
         const sqliteId = id.replace('sqlite_', '');
         try {
@@ -218,11 +229,15 @@ async function eliminarEventoPublicado(id) {
             } else if (!respuesta.ok) {
                 const data = await respuesta.json();
                 alert('No se puede eliminar: ' + (data.error || 'El evento tiene datos vinculados.'));
-                return;
+                return false;
             }
         } catch (err) {
             console.warn('Error de conexión, forzando limpieza local...', err);
         }
+    } else {
+        // Eventos que no viven en SQLite (ej. EVENTOS_BASE) igual pueden
+        // tener un rider o datos de proveedores asociados a su id; se
+        // intenta borrar el rider por las dudas (limpiarDatosEvento ya lo hace).
     }
 
     registrarEventoEliminado(id);
@@ -239,15 +254,23 @@ async function eliminarEventoPublicado(id) {
     localStorage.setItem('cartelera_usuario', JSON.stringify(carteleraFiltrada));
 
     limpiarDatosEvento(id);
+
+    const tarjeta = document.getElementById(id);
+    if (tarjeta) tarjeta.remove();
+
     renderEventosPublicados();
     actualizarSelectRider();
-    actualizarTablaRider();
+    await actualizarTablaRider();
+    return true;
 }
 
 function limpiarDatosEvento(id) {
     localStorage.removeItem('reserva_' + id);
     localStorage.removeItem('fecha_reserva_' + id);
     localStorage.removeItem('inv_' + id);
+    // Red de seguridad: para eventos que no pasan por eliminarEventoCompleto
+    // (ej. eventos base locales que nunca llegaron a SQLite), igual se intenta
+    // borrar cualquier rider que hubiera quedado vinculado a este id.
     fetch(urlRider(id), { method: 'DELETE' }).catch(() => {});
     eliminarEventoVistaUsuario(id);
     eliminarReservaAdministrador(id);
@@ -1170,9 +1193,7 @@ async function actualizarTablaRider() {
                         : '---'}
                 </td>
                 <td>
-                    ${archivo
-                        ? `<button onclick="eliminarRider('${a.id}')" style="color:red; cursor:pointer; background:none; border:none;">Eliminar</button>`
-                        : '---'}
+                    <button onclick="eliminarRider('${a.id}')" style="color:white; cursor:pointer; background:#c62828; border:none; padding:5px 10px; border-radius:5px;">🗑️ Eliminar evento</button>
                 </td>
                 <td>
                     ${eventoPublicado
@@ -1187,15 +1208,18 @@ async function actualizarTablaRider() {
 }
 
 async function eliminarRider(id) {
-    if (!confirm("¿Eliminar archivo técnico?")) return;
+    // OJO: este botón ya no borra solo el archivo del rider. Ahora elimina
+    // el EVENTO COMPLETO (evento + proveedores + personal técnico + rider +
+    // fechas/funciones relacionadas), igual que el botón "Eliminar" de la
+    // tarjeta de evento en Booking/Cartelera. Es el mismo comportamiento en
+    // los dos lugares para que no quede nada huérfano en ningún módulo.
+    if (!confirm("¿Eliminar este evento por completo? Se borrará el evento, su rider, sus fechas y sus proveedores asignados. Esta acción no se puede deshacer.")) return;
 
     try {
-        const respuesta = await fetch(urlRider(id), { method: 'DELETE' });
-        const resultado = await respuesta.json();
-        if (!respuesta.ok || !resultado.ok) throw new Error(resultado.error || 'No se pudo eliminar el rider.');
-        await actualizarTablaRider();
+        const ok = await eliminarEventoCompleto(id);
+        if (!ok) return;
     } catch (error) {
-        alert(error.message || "No se pudo eliminar el rider.");
+        alert(error.message || "No se pudo eliminar el evento.");
     }
 }
 
