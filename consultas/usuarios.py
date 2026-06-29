@@ -189,6 +189,7 @@ def asegurar_columnas_registro(cursor):
         if columna not in columnas:
             cursor.execute(f"ALTER TABLE Usuario ADD COLUMN {columna} {tipo}")
 
+
 def validar_login(correo, contrasena):
     conexion = conectar()
     cursor = conexion.cursor()
@@ -225,22 +226,6 @@ def validar_login(correo, contrasena):
         conexion.close()
 
 
-ROL_CLIENTE_ID = 4
-
-
-def obtener_o_crear_pais(cursor, nombre_pais):
-    pais = (nombre_pais or "").strip()
-    if not pais:
-        return None
-
-    cursor.execute("SELECT Pais_Id FROM Pais WHERE LOWER(Nombre_Pais) = LOWER(?)", (pais,))
-    existente = cursor.fetchone()
-    if existente:
-        return existente[0]
-
-    cursor.execute("INSERT INTO Pais (Nombre_Pais) VALUES (?)", (pais,))
-    return cursor.lastrowid
-
 def actualizar_usuario(cursor, usuario_id, nombre, apellido, correo, telefono, ciudad):
     """
     Actualiza los datos de un usuario en la base de datos.
@@ -255,16 +240,19 @@ def actualizar_usuario(cursor, usuario_id, nombre, apellido, correo, telefono, c
 
 
 def crear_usuario(datos):
+    """
+    Crea un nuevo usuario de forma plana (simplificado sin Pais_Id).
+    """
     nombre     = (datos.get("nombre")     or "").strip()
     apellido   = (datos.get("apellido")   or "").strip()
     correo     = (datos.get("correo")     or "").strip()
     cedula     = (datos.get("cedula")     or "").strip()
     telefono   = (datos.get("telefono")   or "").strip()
-    pais       = (datos.get("pais")       or "").strip()
     ciudad     = (datos.get("ciudad")     or "").strip()
     contrasena = (datos.get("contrasena") or "").strip()
 
-    if not all([nombre, apellido, correo, cedula, telefono, pais, ciudad, contrasena]):
+    # Se removió la validación de 'pais'
+    if not all([nombre, apellido, correo, cedula, telefono, ciudad, contrasena]):
         raise ValueError("Todos los campos del registro son obligatorios")
 
     digitos_cedula = "".join(c for c in cedula if c.isdigit())
@@ -292,13 +280,12 @@ def crear_usuario(datos):
         if cursor.fetchone():
             raise ValueError("El número de documento ya está registrado")
 
-        pais_id = obtener_o_crear_pais(cursor, pais)
-
+        # --- CAMBIO PRINCIPAL: INSERT SIN PAIS_ID ---
         cursor.execute("""
             INSERT INTO Usuario
-                (Cedula, Nombre, Apellido, Estado, Contrasena, Pais_Id, Correo, Telefono, Ciudad)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (cedula_int, nombre, apellido, "Activo", contrasena, pais_id, correo, telefono, ciudad))
+                (Cedula, Nombre, Apellido, Estado, Contrasena, Correo, Telefono, Ciudad)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (cedula_int, nombre, apellido, "Activo", contrasena, correo, telefono, ciudad))
 
         usuario_id = cursor.lastrowid
 
@@ -316,7 +303,6 @@ def crear_usuario(datos):
             "correo":   correo,
             "cedula":   cedula_int,
             "telefono": telefono,
-            "pais":     pais,
             "ciudad":   ciudad
         }
     except Exception:
@@ -324,4 +310,3 @@ def crear_usuario(datos):
         raise
     finally:
         conexion.close()
-

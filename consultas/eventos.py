@@ -163,14 +163,28 @@ def actualizar_evento(evento_id, nuevo_nombre, nueva_fecha):
 
 # 5. ELIMINAR EVENTO
 def eliminar_evento(evento_id):
-    """Elimina un evento por su ID."""
+    """
+    Elimina un evento por su ID, junto con sus filas relacionadas en
+    Evento_Proveedor y Personal_Tecnico_Evento.
+
+    Antes solo se borraba de Evento, dejando huerfanos los proveedores y el
+    personal tecnico asignados a ese Evento_Id. Esas filas huerfanas seguian
+    apareciendo en el modulo de Proveedores (que las consulta por Evento_Id)
+    aunque el evento ya no existiera en Booking.
+    """
     conexion = conectar()
     cursor = conexion.cursor()
     try:
+        asegurar_tabla_personal_tecnico(cursor)
+
+        cursor.execute("DELETE FROM Evento_Proveedor WHERE Evento_Id = ?", (evento_id,))
+        cursor.execute("DELETE FROM Personal_Tecnico_Evento WHERE Evento_Id = ?", (evento_id,))
         cursor.execute("DELETE FROM Evento WHERE Evento_Id = ?", (evento_id,))
+
         conexion.commit()
         return cursor.rowcount > 0
     except Exception as e:
+        conexion.rollback()
         print(f"Error al eliminar evento: {e}")
         return False
     finally:

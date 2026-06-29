@@ -77,18 +77,33 @@ async function peticionJSON(url, opciones = {}) {
    CARGA INICIAL
    ======================== */
 
+/* ========================
+   CARGA INICIAL
+   ======================== */
+
 async function cargarDatosIniciales() {
   try {
+    // Traemos los datos frescos rompiendo la caché
     const [datosEventos, datosProveedores] = await Promise.all([
-      peticionJSON("/api/eventos"),
-      peticionJSON("/api/proveedores")
+      peticionJSON("/api/eventos?t=" + Date.now()),
+      peticionJSON("/api/proveedores?t=" + Date.now())
     ]);
-    eventos = datosEventos.eventos || [];
+    
+    // 👉 FILTRO DEFINITIVO: Solo dejamos los eventos que están PUBLICADOS en el Booking (Publicado === 1)
+    // y que además tengan al menos una función/fecha asignada.
+    eventos = (datosEventos.eventos || []).filter(evento => {
+      const estaPublicado = (evento.Publicado === 1 || evento.publicado === 1);
+      const tieneFunciones = (evento.funciones && evento.funciones.length > 0);
+      return estaPublicado && tieneFunciones;
+    });
+    
     catalogoProveedores = datosProveedores.proveedores || [];
     renderEventList();
   } catch (error) {
     const contenedor = document.getElementById("eventList");
-    contenedor.innerHTML = `<p class="provider-empty">No se pudieron cargar los eventos: ${escaparHTML(error.message)}</p>`;
+    if (contenedor) {
+      contenedor.innerHTML = `<p class="provider-empty">No se pudieron cargar los eventos: ${error.message}</p>`;
+    }
   }
 }
 

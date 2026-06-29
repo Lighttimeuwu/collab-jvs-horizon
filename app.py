@@ -850,5 +850,79 @@ def actualizar_pass_recuperacion():
         conexion.close()
 
 
+# ==================================================
+# HERRAMIENTA TEMPORAL: LIMPIEZA DE EVENTOS FANTASMA
+# ==================================================
+@app.route("/api/borrar-fantasma", methods=["GET"])
+def borrar_fantasma_manual():
+    """
+    Panel rápido para ver los IDs de todos los eventos en la BD
+    y permitir la eliminación física definitiva de los fantasmas.
+    """
+    evento_id = request.args.get("id")
+    conexion = conectar()
+    cursor = conexion.cursor()
+    
+    try:
+        # Si el usuario hace clic en eliminar un ID específico
+        if evento_id:
+            cursor.execute("DELETE FROM Evento WHERE Evento_Id = ?", (evento_id,))
+            cursor.execute("DELETE FROM Evento_Artista WHERE Evento_Id = ?", (evento_id,))
+            cursor.execute("DELETE FROM Personal_Tecnico_Evento WHERE Evento_Id = ?", (evento_id,))
+            conexion.commit()
+            return f"""
+                <div style="font-family: Arial; padding: 20px;">
+                    <h2 style="color: green;">¡Éxito!</h2>
+                    <p>El evento con ID <strong>{evento_id}</strong> ha sido eliminado por completo de la base de datos.</p>
+                    <a href="/api/borrar-fantasma" style="color: blue; font-weight: bold;">← Volver al listado</a>
+                </div>
+            """
+        
+        # Si no hay ID en la URL, listamos todos los eventos existentes en la BD
+        cursor.execute("SELECT Evento_Id, Nombre FROM Evento")
+        todos_los_eventos = cursor.fetchall()
+        
+        # Construimos una interfaz HTML básica y rápida
+        html = """
+        <div style="font-family: Arial; max-width: 600px; margin: 30px auto; padding: 20px; border: 1px solid #ccc; border-radius: 8px;">
+            <h2>Panel de Purga: Eventos en Base de Datos</h2>
+            <p>Busca los eventos viejos o fantasmas que quieres desaparecer y haz clic en eliminar:</p>
+            <table border="1" cellpadding="10" style="width: 100%; border-collapse: collapse; text-align: left;">
+                <tr style="background-color: #f2f2f2;">
+                    <th>ID</th>
+                    <th>Nombre del Evento</th>
+                    <th>Acción</th>
+                </tr>
+        """
+        for ev in todos_los_eventos:
+            html += f"""
+                <tr>
+                    <td>{ev[0]}</td>
+                    <td><strong>{ev[1]}</strong></td>
+                    <td>
+                        <a href="/api/borrar-fantasma?id={ev[0]}" 
+                           style="color: red; font-weight: bold; text-decoration: none;"
+                           onclick="return confirm('¿Estás seguro de que deseas eliminar este evento para siempre de la base de datos?');">
+                           ❌ Eliminar Definitivamente
+                        </a>
+                    </td>
+                </tr>
+            """
+        html += "</table></div>"
+        return html
+
+    except Exception as error:
+        return f"<h2>Error en la purga:</h2><p>{str(error)}</p>"
+    finally:
+        conexion.close()
+
+@app.after_request
+def desactivar_cache_navegador(response):
+    """Obliga al navegador a pedir datos nuevos siempre en cada recarga"""
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)

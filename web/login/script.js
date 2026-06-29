@@ -111,19 +111,21 @@ async function login(evento) {
 
 async function registrarUsuario() {
   const mensaje = document.getElementById("registroMensaje");
+  
+  // Aquí recolectamos los datos (Se quitó el campo "pais")
   const datos = {
     nombre:     document.getElementById("registroNombre").value.trim(),
     apellido:   document.getElementById("registroApellido").value.trim(),
     correo:     document.getElementById("registroCorreo").value.trim(),
     cedula:     document.getElementById("registroCedula").value.trim(),
     telefono:   document.getElementById("registroTelefono").value.trim(),
-    pais:       document.getElementById("pais").value,
-    ciudad:     document.getElementById("ciudad").value,
+    ciudad:     document.getElementById("ciudad").value.trim(), // Ahora lleva .trim() porque es un input de texto
     contrasena: document.getElementById("pass").value.trim()
   };
 
+  // Aquí se valida (Se quitó "!datos.pais" de la condición)
   if (!datos.nombre || !datos.apellido || !datos.correo || !datos.cedula ||
-      !datos.telefono || !datos.pais || !datos.ciudad || !datos.contrasena) {
+      !datos.telefono || !datos.ciudad || !datos.contrasena) {
     mensaje.innerText = "Completa todos los campos para registrarte.";
     mensaje.className = "registro-mensaje error";
     return;
@@ -150,22 +152,21 @@ async function registrarUsuario() {
       throw new Error(resultado.error || "No se pudo registrar el usuario.");
     }
 
-    // Indicamos éxito de creación en el mensajito
     mensaje.innerText = "¡Usuario creado satisfactoriamente!";
     mensaje.className = "registro-mensaje exito";
 
-    // Limpiamos los campos
+    // Limpiamos los campos (Se quitó la limpieza de campos que ya no existen)
     document.getElementById("registroNombre").value   = "";
     document.getElementById("registroApellido").value = "";
     document.getElementById("registroCorreo").value   = "";
     document.getElementById("registroCedula").value   = "";
     document.getElementById("registroTelefono").value = "";
+    document.getElementById("ciudad").value           = ""; // Limpiamos el nuevo input de ciudad
     document.getElementById("pass").value             = "";
     
-    // Esperamos 2 segundos para que el usuario visualice el mensaje y luego redirigimos al login
     setTimeout(() => {
       mostrar('login');
-      mensaje.innerText = ""; // Limpiamos el mensaje para cuando vuelvan a abrir el formulario
+      mensaje.innerText = "";
     }, 2000);
 
   } catch (error) {
@@ -188,30 +189,7 @@ function toggleOjo(inputId, btn) {
 
 /* ========================
    CIUDADES POR PAÍS
-   ======================== */
-
-function ciudades() {
-  const pais = document.getElementById("pais").value;
-  const c    = document.getElementById("ciudad");
-  c.innerHTML = "";
-
-  const lista = {
-    Colombia:  ["Bogotá", "Medellín", "Cali"],
-    México:    ["CDMX", "Guadalajara", "Monterrey"],
-    España:    ["Madrid", "Barcelona", "Valencia"],
-    Argentina: ["Buenos Aires", "Córdoba"],
-    Chile:     ["Santiago", "Valparaiso"]
-  };
-
-  lista[pais].forEach(ci => {
-    const op  = document.createElement("option");
-    op.text = ci;
-    c.add(op);
-  });
-}
-
-ciudades();
-
+   ======================== *
 
 /* ==================================================
    LÓGICA DE RECUPERACIÓN DE CONTRASEÑA (PROTOTIPO)
