@@ -214,22 +214,47 @@ function registrarEventoEliminado(id) {
     }
 }
 
-function eliminarEventoPublicado(id) {
+async function eliminarEventoPublicado(id) {
     if (!confirm('\u00bfEliminar este evento permanentemente?')) return;
 
-    // 1. Eliminar del backend (DB)
     if (id.startsWith('sqlite_')) {
         const sqliteId = id.replace('sqlite_', '');
-        fetch(API_EVENTOS_URL + '/' + sqliteId, { method: 'DELETE', credentials: 'include' })
-            .catch(err => console.warn('No se pudo eliminar del backend:', err));
+        try {
+            const respuesta = await fetch(API_EVENTOS_URL + '/' + sqliteId, { 
+                method: 'DELETE', 
+                credentials: 'include' 
+            });
+            
+            if (respuesta.status === 404) {
+                console.warn('El evento no se encontró en la base de datos, se procederá a limpiar la caché local.');
+            } else if (!respuesta.ok) {
+                const data = await respuesta.json();
+                alert('No se puede eliminar: ' + (data.error || 'El evento tiene datos vinculados.'));
+                return; 
+            }
+        } catch (err) {
+            console.warn('Error de conexión, forzando limpieza local...', err);
+        }
     }
 
-    // 2. Lista negra: nunca volver a mostrarlo aunque la API lo devuelva
+    // 1. Registro interno de eventos eliminados en localStorage
     registrarEventoEliminado(id);
-
-    // 3. Limpiar localStorage y UI
-    const eventos = obtenerEventosPublicados().filter(evento => evento.id !== id);
+    
+    // 2. Actualizamos la lista principal de publicados filtrando el ID problemático
+    const eventos = obtenerEventosPublicados().filter(evento => evento.id !== id && evento.sqliteId != id);
     guardarEventosPublicados(eventos);
+
+    // 3. Eliminamos el rastro en el almacenamiento local de proveedores
+    const proveedoresData = JSON.parse(localStorage.getItem('proveedores_data') || '{}');
+    delete proveedoresData[id];
+    localStorage.setItem('proveedores_data', JSON.stringify(proveedoresData));
+
+    // 4. Eliminamos de la cartelera del usuario por si acaso
+    const cartelera = JSON.parse(localStorage.getItem('cartelera_usuario') || '[]');
+    const carteleraFiltrada = cartelera.filter(c => c.id !== id && c.sqliteId != id);
+    localStorage.setItem('cartelera_usuario', JSON.stringify(carteleraFiltrada));
+
+    // 5. Limpieza visual de la interfaz
     limpiarDatosEvento(id);
     renderEventosPublicados();
     actualizarSelectRider();
@@ -564,45 +589,44 @@ function publicarEventoNuevo() {
  * Llamar desde el módulo de Proveedores tras completar el proceso.
  * Marca enCartelera: true en eventos_publicados y escribe en cartelera_usuario.
  */
-function enviarEventoACartelera(id) {
-    const eventos = obtenerEventosPublicados();
-    const indice  = eventos.findIndex(ev => ev.id === id);
-    if (indice < 0) {
-        console.warn('enviarEventoACartelera: evento no encontrado:', id);
-        return false;
+async function enviarEventoACartelera(id) {
+    if (id.startsWith('sqlite_')) {
+        const sqliteId = id.replace('sqlite_', '');
+        try {
+            await fetch(`/api/eventos/${sqliteId}/publicar`, {
+                method: 'PUT',
+                credentials: 'include'
+            });
+        } catch (err) {
+            console.warn('No se pudo publicar en el backend:', err);
+        }
     }
 
-    // Marcar como en cartelera en eventos_publicados
+    const eventos = obtenerEventosPublicados();
+    const indice  = eventos.findIndex(ev => ev.id === id);
+    if (indice < 0) return false;
+
     eventos[indice].enCartelera = true;
     guardarEventosPublicados(eventos);
 
-    // Sincronizar proveedores_data para que la vista de usuario también lo detecte
     const proveedoresData = JSON.parse(localStorage.getItem('proveedores_data') || '{}');
     if (!proveedoresData[id]) proveedoresData[id] = {};
     proveedoresData[id].enCartelera = true;
     localStorage.setItem('proveedores_data', JSON.stringify(proveedoresData));
 
-    // Escribir en cartelera_usuario
     const ev = eventos[indice];
     const cartelera = JSON.parse(localStorage.getItem('cartelera_usuario') || '[]');
     if (!cartelera.some(c => c.id === id)) {
         cartelera.push({
-            id:          ev.id,
-            sqliteId:    ev.sqliteId,
-            nombre:      ev.nombre,
-            tipo:        ev.tipo,
-            lugar:       ev.lugar,
-            hora:        ev.hora,
-            horas:       ev.horas,
-            fechas:      ev.fechas,
-            imagen:      ev.imagen,
-            descripcion: ev.descripcion || '',
-            enCartelera: true
+            id: ev.id, sqliteId: ev.sqliteId, nombre: ev.nombre,
+            tipo: ev.tipo, lugar: ev.lugar, hora: ev.hora,
+            horas: ev.horas, fechas: ev.fechas, imagen: ev.imagen,
+            descripcion: ev.descripcion || '', enCartelera: true
         });
         localStorage.setItem('cartelera_usuario', JSON.stringify(cartelera));
     }
 
-    renderEventosPublicados(); // Actualizar etiqueta borrador → en cartelera
+    renderEventosPublicados(); 
     return true;
 }
 
@@ -610,7 +634,19 @@ function enviarEventoACartelera(id) {
  * Quita un evento de la cartelera de usuario sin eliminarlo del Booking.
  * Útil si el administrador necesita retirar un evento publicado.
  */
-function quitarEventoDeCartelera(id) {
+async function quitarEventoDeCartelera(id) {
+    if (id.startsWith('sqlite_')) {
+        const sqliteId = id.replace('sqlite_', '');
+        try {
+            await fetch(`/api/eventos/${sqliteId}/despublicar`, {
+                method: 'PUT',
+                credentials: 'include'
+            });
+        } catch (err) {
+            console.warn('No se pudo despublicar en el backend:', err);
+        }
+    }
+
     const eventos = obtenerEventosPublicados();
     const indice  = eventos.findIndex(ev => ev.id === id);
     if (indice >= 0) {
@@ -627,6 +663,7 @@ function quitarEventoDeCartelera(id) {
     eliminarEventoVistaUsuario(id);
     renderEventosPublicados();
 }
+
 
 function volverAdministrador() {
     localStorage.setItem('admin_entrar_menu', 'true');

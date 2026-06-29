@@ -1450,3 +1450,48 @@ input[readonly] {
   font-size: 15px;
   margin: 0 0 12px;
 }
+
+/* ==========================================
+   ACCESOS DIRECTOS A MÓDULOS (Vista Usuario)
+   ========================================== */
+.accesos-modulos-panel {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 30px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.btn-acceso-modulo {
+  background: linear-gradient(135deg, #0077b6, #00b4d8);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 10px;
+  padding: 12px 24px;
+  font-size: 15px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(0, 119, 182, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.btn-acceso-modulo:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(0, 180, 216, 0.6);
+  background: linear-gradient(135deg, #0096c7, #48cae4);
+  color: #000;
+}
+
+.btn-admin {
+  background: linear-gradient(135deg, #7a0018, #aa0022) !important;
+  box-shadow: 0 4px 15px rgba(122, 0, 24, 0.5) !important;
+  border-color: #ff4444 !important;
+}
+
+.btn-admin:hover {
+  background: linear-gradient(135deg, #aa0022, #ff4444) !important;
+  box-shadow: 0 6px 25px rgba(255, 68, 68, 0.7) !important;
+  color: #fff !important;
+}

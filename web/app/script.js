@@ -69,7 +69,31 @@ async function cerrarSesion() {
     window.location.href = "/web/login/";
     return;
   }
+  
   mostrarBienvenida(usuario);
+
+  // Lógica de visualización de botones según el rol
+  const btnBooking = document.getElementById("btnAccesoBooking");
+  const btnProveedores = document.getElementById("btnAccesoProveedores");
+  const btnAdmin = document.getElementById("btnAccesoAdmin");
+  const panel = document.getElementById("panelAccesosModulos");
+
+  if (panel) {
+    panel.style.display = "flex";
+  }
+
+  // Si es rol 2 (Proveedor / Encargado de Módulos)
+  if (usuario.rol_id === 2) {
+    if (btnBooking) btnBooking.style.display = "block";
+    if (btnProveedores) btnProveedores.style.display = "block";
+  }
+
+  // Si es Administrador (Rol 1, ajusta el número si difiere en tu base de datos)
+  if (usuario.rol_id === 1) {
+    if (btnBooking) btnBooking.style.display = "block";
+    if (btnProveedores) btnProveedores.style.display = "block";
+    if (btnAccesoAdmin) btnAccesoAdmin.style.display = "block";
+  }
 })();
 
 function mostrarBienvenida(usuario) {
