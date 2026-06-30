@@ -2,13 +2,22 @@ import os
 import sys
 import uuid
 import base64
+import time
+import shutil
 
 from flask import Flask, jsonify, request, session, redirect, send_from_directory
 from utilidades.conexion import conectar
+from utilidades.rutas import ruta_recurso, ruta_persistente
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# BASE_DIR: carpeta de RECURSOS DE SOLO LECTURA (web/, plantillas, etc.).
+# En modo .exe esto resuelve dentro de sys._MEIPASS (extraccion temporal),
+# que es correcto para leer HTML/CSS/JS empaquetados, pero NUNCA debe
+# usarse para guardar archivos nuevos (imagenes, riders, base de datos):
+# para eso se usa ruta_persistente() mas abajo.
+BASE_DIR = ruta_recurso()
 if BASE_DIR not in sys.path:
     sys.path.append(BASE_DIR)
+
 
 from consultas.eventos import (
     actualizar_evento_desde_booking, consultar_aforo, listar_eventos,
@@ -37,11 +46,39 @@ BOOKING_DIR     = os.path.join(WEB_DIR, "JVS_FRONTED_BOOKING")
 PROVEEDORES_DIR = os.path.join(WEB_DIR, "JVS FRONTED PROVEEDORES")
 
 # ─── Carpetas físicas para archivos (imágenes de eventos y riders) ──────────
-IMAGENES_DIR = os.path.join(BOOKING_DIR, "imagenes")
+# IMPORTANTE: estas carpetas son donde el usuario SUBE archivos nuevos, así
+# que deben vivir junto al .exe real (persistente), no dentro de la carpeta
+# temporal de recursos empaquetados, o se perderían al cerrar el programa.
+IMAGENES_DIR = ruta_persistente("datos", "imagenes")
 os.makedirs(IMAGENES_DIR, exist_ok=True)
 
-RIDERS_DIR = os.path.join(BOOKING_DIR, "riders")
+RIDERS_DIR = ruta_persistente("datos", "riders")
 os.makedirs(RIDERS_DIR, exist_ok=True)
+
+
+def _migrar_archivos_existentes(carpeta_origen_empaquetada, carpeta_destino_persistente):
+    """
+    La PRIMERA vez que el .exe corre (carpeta persistente recien creada y
+    vacia), copia ahi las imagenes/riders que ya existian en el proyecto
+    original y quedaron empaquetadas como recurso de solo lectura dentro
+    del .exe. Asi no se "pierden" los archivos que ya tenias subidos antes
+    de convertir el proyecto a .exe. En ejecuciones siguientes, como la
+    carpeta persistente ya no esta vacia, no vuelve a copiar nada (para
+    no pisar archivos nuevos que el usuario haya subido despues).
+    """
+    if not os.path.isdir(carpeta_origen_empaquetada):
+        return
+    if os.listdir(carpeta_destino_persistente):
+        return  # ya tiene archivos (subidos despues o migrados antes), no tocar
+
+    for nombre in os.listdir(carpeta_origen_empaquetada):
+        origen = os.path.join(carpeta_origen_empaquetada, nombre)
+        if os.path.isfile(origen):
+            shutil.copyfile(origen, os.path.join(carpeta_destino_persistente, nombre))
+
+
+_migrar_archivos_existentes(ruta_recurso("web", "JVS_FRONTED_BOOKING", "imagenes"), IMAGENES_DIR)
+_migrar_archivos_existentes(ruta_recurso("web", "JVS_FRONTED_BOOKING", "riders"), RIDERS_DIR)
 
 EXTENSIONES_PERMITIDAS = {"jpg", "jpeg", "png", "webm"}
 
@@ -923,4 +960,40 @@ def desactivar_cache_navegador(response):
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    import socket
+    import webbrowser
+    from threading import Thread
+    from utilidades.rutas import _esta_congelado
+
+    URL_INICIO = "http://127.0.0.1:5000/web/login/"
+
+    # El reloader de Flask (activado por debug=True) intenta relanzar el
+    # proceso usando sys.executable. En un .exe de PyInstaller eso rompe
+    # el programa (se reinicia en bucle o no levanta el servidor) en la
+    # PC de destino. Por eso: debug solo en desarrollo, y SIEMPRE con
+    # use_reloader=False cuando esta empaquetado como .exe.
+    modo_debug = (not _esta_congelado())
+
+    def _esperar_servidor_y_abrir_navegador():
+        """
+        En vez de abrir el navegador despues de un tiempo fijo (que puede
+        ser muy corto la primera vez que el .exe arranca en una PC nueva,
+        porque tarda mas en autoextraerse), esperamos activamente a que
+        el puerto 5000 realmente este aceptando conexiones, y recien ahi
+        abrimos el navegador. Esto evita la pantalla de error del
+        navegador por "conexion rechazada" cuando se abre demasiado pronto.
+        """
+        for _ in range(120):  # hasta ~60 segundos de espera (120 x 0.5s)
+            try:
+                with socket.create_connection(("127.0.0.1", 5000), timeout=0.5):
+                    webbrowser.open(URL_INICIO)
+                    return
+            except OSError:
+                time.sleep(0.5)
+        # Si despues de 60s no respondio, igual intentamos abrir por si acaso.
+        webbrowser.open(URL_INICIO)
+
+    if _esta_congelado():
+        Thread(target=_esperar_servidor_y_abrir_navegador, daemon=True).start()
+
+    app.run(host="0.0.0.0", port=5000, debug=modo_debug, use_reloader=False)
