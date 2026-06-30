@@ -1,12 +1,17 @@
 # -*- mode: python ; coding: utf-8 -*-
+from PyInstaller.utils.hooks import collect_submodules
+
+hiddenimports = ['flask', 'werkzeug', 'jinja2', 'click', 'itsdangerous']
+hiddenimports += collect_submodules('consultas')
+hiddenimports += collect_submodules('utilidades')
 
 
 a = Analysis(
     ['app.py'],
     pathex=[],
     binaries=[],
-    datas=[('web', 'web'), ('boleteria.db', '.')],
-    hiddenimports=['flask', 'werkzeug', 'jinja2', 'click', 'itsdangerous'],
+    datas=[('web', 'web'), ('boleteria.db', '.'), ('consultas', 'consultas'), ('utilidades', 'utilidades')],
+    hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

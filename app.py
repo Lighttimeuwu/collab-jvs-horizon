@@ -132,6 +132,21 @@ def servir_riders(filename):
     return send_from_directory(RIDERS_DIR, filename)
 
 
+# El index.html del login pide los estáticos con ruta absoluta ("/styles.css",
+# "/script.js") para que funcionen igual sin importar si se accede por "/" o
+# por "/web/login/". Como NO usamos el static_folder genérico de Flask (cada
+# módulo tiene su propia carpeta y ruta), hace falta esta ruta explícita en
+# la raíz para que esas dos peticiones no devuelvan 404.
+@app.get("/styles.css")
+def login_styles():
+    return send_from_directory(LOGIN_DIR, "styles.css")
+
+
+@app.get("/script.js")
+def login_script():
+    return send_from_directory(LOGIN_DIR, "script.js")
+
+
 # ─── Limpiar eventos vencidos al arrancar ────────────────────────────────────
 try:
     despublicar_eventos_vencidos()
