@@ -485,6 +485,16 @@ function limpiarFormularioEvento() {
     limpiarSeleccionGenero();
 }
 
+// Extensiones de imagen permitidas para eventos y riders (deben coincidir con app.py)
+const EXTENSIONES_IMAGEN_PERMITIDAS = ['jpg', 'jpeg', 'png', 'webm'];
+
+function extensionPermitida(archivo) {
+    if (!archivo || !archivo.name) return false;
+    const partes = archivo.name.split('.');
+    const extension = partes.length > 1 ? partes.pop().toLowerCase() : '';
+    return EXTENSIONES_IMAGEN_PERMITIDAS.includes(extension);
+}
+
 function publicarEventoNuevo() {
     const nombre = document.getElementById('nuevoEventoNombre').value.trim();
     const tipo = document.getElementById('nuevoEventoTipo').value;
@@ -505,6 +515,11 @@ function publicarEventoNuevo() {
 
     if (!nombre || !tipo || !lugar || !hora || fechas.length === 0 || !archivo) {
         alert('Completa nombre, tipo de evento, localidad, hora, al menos una fecha y una foto del evento.');
+        return;
+    }
+
+    if (!extensionPermitida(archivo)) {
+        alert('La imagen del evento debe ser .jpg, .jpeg, .png o .webm.');
         return;
     }
 
@@ -543,7 +558,9 @@ function publicarEventoNuevo() {
             if (respuesta.ok && resultado.ok) {
                 sqliteId      = resultado.evento.id;
                 idFinal       = 'sqlite_' + sqliteId;
-                imagenGuardar = imagenBase64;
+                // El backend ya clonó la imagen como archivo físico y nos
+                // devuelve la URL pública dentro del propio evento creado.
+                imagenGuardar = resultado.evento.imagen || imagenBase64;
             }
         } catch (err) {
             console.warn('Flask no disponible, evento queda solo en localStorage:', err);
@@ -970,6 +987,11 @@ function guardarAgenda() {
     const imagenUrlEditada = document.getElementById('editEventoImagenUrl') ? document.getElementById('editEventoImagenUrl').value.trim() : '';
     const archivoImagenEditada = document.getElementById('editEventoImagenArchivo') ? document.getElementById('editEventoImagenArchivo').files[0] : null;
 
+    if (archivoImagenEditada && !extensionPermitida(archivoImagenEditada)) {
+        alert('La imagen del evento debe ser .jpg, .jpeg, .png o .webm.');
+        return;
+    }
+
     lista.innerHTML = nuevasFechas.map(fecha => `<li>&#128197; ${fecha}</li>`).join('');
 
     const cambiosAgenda = {
@@ -1003,6 +1025,12 @@ function guardarAgenda() {
             sincronizarEventoVistaUsuario(artistaIdActual, cambiosAgenda);
             if (eventoActualizado && esEventoSQLite(eventoActualizado)) {
                 actualizarEventoSQLite(eventoActualizado)
+                    .then(() => {
+                        // El backend devuelve la URL física definitiva de la imagen
+                        // (si se subió una nueva). Recargamos desde la API para
+                        // reflejar esa ruta en vez del Base64 temporal.
+                        cargarEventosDesdeAPI();
+                    })
                     .catch(error => alert(error.message || 'No se pudo actualizar SQLite.'));
             }
             renderEventosPublicados();
@@ -1109,6 +1137,12 @@ async function vincularRider() {
     if (fileInput.files.length === 0) return alert("Selecciona un archivo primero.");
 
     const archivo = fileInput.files[0];
+
+    if (!extensionPermitida(archivo)) {
+        alert('El archivo del rider debe ser .jpg, .jpeg, .png o .webm.');
+        return;
+    }
+
     const generoSeleccionado = obtenerGeneroSeleccionado();
 
     try {
@@ -1144,11 +1178,12 @@ async function abrirRider(id) {
         const resultado = await respuesta.json();
         if (!respuesta.ok || !resultado.ok) throw new Error(resultado.error || 'No hay archivo vinculado.');
 
-        const win = window.open();
-        win.document.write(
-            '<iframe src="' + resultado.rider.contenido_base64 +
-            '" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>'
-        );
+        // contenido_base64 ahora es la URL pública del archivo físico
+        // (ej. /riders/rider_sqlite_7_a1b2c3.png), no un data-URI.
+        const urlArchivo = resultado.rider.contenido_base64;
+        if (!urlArchivo) throw new Error('No hay archivo vinculado.');
+
+        window.open(urlArchivo, '_blank');
     } catch (error) {
         alert(error.message || "No se pudo abrir el rider.");
     }

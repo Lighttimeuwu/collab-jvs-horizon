@@ -1,5 +1,7 @@
 import os
 import sys
+import uuid
+import base64
 
 from flask import Flask, jsonify, request, session, redirect, send_from_directory
 from utilidades.conexion import conectar
@@ -33,6 +35,64 @@ APP_DIR         = os.path.join(WEB_DIR, "app")
 ADMIN_DIR       = os.path.join(WEB_DIR, "JVS FRONTED ADMINISTRADOR")
 BOOKING_DIR     = os.path.join(WEB_DIR, "JVS_FRONTED_BOOKING")
 PROVEEDORES_DIR = os.path.join(WEB_DIR, "JVS FRONTED PROVEEDORES")
+
+# ─── Carpetas físicas para archivos (imágenes de eventos y riders) ──────────
+IMAGENES_DIR = os.path.join(BOOKING_DIR, "imagenes")
+os.makedirs(IMAGENES_DIR, exist_ok=True)
+
+RIDERS_DIR = os.path.join(BOOKING_DIR, "riders")
+os.makedirs(RIDERS_DIR, exist_ok=True)
+
+EXTENSIONES_PERMITIDAS = {"jpg", "jpeg", "png", "webm"}
+
+
+def guardar_base64_como_archivo(base64_str, carpeta, prefijo):
+    """
+    Decodifica un string 'data:<mime>;base64,<datos>' y lo guarda como
+    archivo físico dentro de 'carpeta'. Solo admite jpg, jpeg, png y webm.
+    Devuelve el NOMBRE del archivo guardado (no la ruta completa).
+    """
+    base64_str = (base64_str or "").strip()
+    if not base64_str.startswith("data:"):
+        raise ValueError("El contenido debe venir en formato Base64 (data:...)")
+
+    try:
+        header, datos_base64 = base64_str.split(",", 1)
+        mime = header.split(":")[1].split(";")[0]   # ej: image/png
+        extension = mime.split("/")[-1].lower()     # ej: png
+    except (ValueError, IndexError):
+        raise ValueError("Formato de Base64 inválido")
+
+    if extension == "jpeg":
+        extension = "jpg"
+
+    if extension not in EXTENSIONES_PERMITIDAS:
+        raise ValueError(
+            f"Formato de archivo no permitido: .{extension}. "
+            "Solo se aceptan JPG, JPEG, PNG o WEBM."
+        )
+
+    nombre_archivo = f"{prefijo}_{uuid.uuid4().hex[:10]}.{extension}"
+    ruta_archivo = os.path.join(carpeta, nombre_archivo)
+
+    with open(ruta_archivo, "wb") as f:
+        f.write(base64.b64decode(datos_base64))
+
+    return nombre_archivo
+
+
+# --- Rutas PÚBLICAS para servir archivos (sin restricción de sesión) ---
+
+@app.get("/imagenes/<path:filename>")
+def servir_imagenes(filename):
+    """Ruta PÚBLICA sin restricción de sesión para que los usuarios puedan ver los flyers."""
+    return send_from_directory(IMAGENES_DIR, filename)
+
+
+@app.get("/riders/<path:filename>")
+def servir_riders(filename):
+    """Ruta PÚBLICA para que el navegador pueda abrir/mostrar archivos de riders."""
+    return send_from_directory(RIDERS_DIR, filename)
 
 
 # ─── Limpiar eventos vencidos al arrancar ────────────────────────────────────
@@ -317,6 +377,13 @@ def crear_evento_api():
     """Crea un evento nuevo en SQLite desde el formulario Publicar del Rider."""
     try:
         datos = request.get_json(silent=True) or {}
+
+        # Si la imagen viene en Base64, se clona como archivo físico en /imagenes
+        imagen = (datos.get("imagen") or "").strip()
+        if imagen.startswith("data:"):
+            nombre_archivo = guardar_base64_como_archivo(imagen, IMAGENES_DIR, "evento_nuevo")
+            datos["imagen"] = f"/imagenes/{nombre_archivo}"
+
         evento = crear_evento_completo(datos)
         return jsonify({
             "ok": True,
@@ -348,20 +415,35 @@ def actualizar_evento_api(evento_id):
 
 @app.put("/api/eventos/<int:evento_id>/imagen")
 def actualizar_imagen_evento_api(evento_id):
-    """Recibe una imagen en base64 y la guarda en Evento.Imagen."""
+    """Recibe una imagen (Base64), la clona como archivo físico y actualiza la BD."""
     try:
         datos  = request.get_json(silent=True) or {}
         imagen = (datos.get("imagen") or "").strip()
+
         if not imagen:
             return jsonify({"ok": False, "error": "Falta el campo imagen"}), 400
+
+        imagen_final = imagen
+
+        # Si viene en Base64, la convertimos a archivo físico dentro de /imagenes
+        if imagen.startswith("data:"):
+            nombre_archivo = guardar_base64_como_archivo(imagen, IMAGENES_DIR, f"evento_{evento_id}")
+            # Esta es la ruta que se guardará en SQLite (ruta pública)
+            imagen_final = f"/imagenes/{nombre_archivo}"
+
         from consultas.eventos import guardar_imagen_evento
-        guardar_imagen_evento(evento_id, imagen)
-        return jsonify({"ok": True, "mensaje": "Imagen guardada correctamente", "evento_id": evento_id})
+        guardar_imagen_evento(evento_id, imagen_final)
+
+        return jsonify({
+            "ok": True,
+            "mensaje": "Imagen guardada físicamente",
+            "evento_id": evento_id,
+            "url_imagen": imagen_final
+        })
     except ValueError as error:
         return jsonify({"ok": False, "error": str(error)}), 400
     except Exception as error:
         return jsonify({"ok": False, "error": str(error)}), 500
-
 
 @app.put("/api/eventos/<int:evento_id>/publicar")
 def publicar_evento_api(evento_id):
@@ -657,7 +739,7 @@ def listar_riders_api():
 
 @app.get("/api/riders/<artista_id>")
 def obtener_rider_api(artista_id):
-    """Devuelve el rider tecnico (incluyendo el archivo) de un artista/evento puntual."""
+    """Devuelve el rider tecnico (incluyendo la URL del archivo) de un artista/evento puntual."""
     try:
         rider = obtener_rider(artista_id)
         if rider is None:
@@ -669,14 +751,28 @@ def obtener_rider_api(artista_id):
 
 @app.post("/api/riders/<artista_id>")
 def guardar_rider_api(artista_id):
-    """Guarda o reemplaza el rider tecnico vinculado a un artista/evento."""
+    """
+    Guarda o reemplaza el rider tecnico vinculado a un artista/evento.
+    El archivo llega en Base64, se clona como archivo físico en /web/.../riders
+    (solo se admiten jpg, jpeg, png, webm) y en la BD se guarda la ruta pública,
+    no el Base64 completo.
+    """
     try:
         datos = request.get_json(silent=True) or {}
+        contenido_base64 = (datos.get("contenido_base64") or "").strip()
+        nombre_original   = datos.get("nombre_archivo")
+        tipo_archivo       = datos.get("tipo_archivo")
+
+        ruta_publica = contenido_base64
+        if contenido_base64.startswith("data:"):
+            nombre_archivo = guardar_base64_como_archivo(contenido_base64, RIDERS_DIR, f"rider_{artista_id}")
+            ruta_publica = f"/riders/{nombre_archivo}"
+
         rider = guardar_rider(
             artista_id,
-            datos.get("nombre_archivo"),
-            datos.get("tipo_archivo"),
-            datos.get("contenido_base64"),
+            nombre_original,
+            tipo_archivo,
+            ruta_publica,
             datos.get("genero")
         )
         return jsonify({

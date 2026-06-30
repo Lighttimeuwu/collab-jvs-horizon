@@ -73,10 +73,6 @@ async function peticionJSON(url, opciones = {}) {
    CARGA INICIAL
    ======================== */
 
-/* ========================
-   CARGA INICIAL
-   ======================== */
-
 async function cargarDatosIniciales() {
   try {
     // Traemos los datos frescos rompiendo la caché
@@ -231,7 +227,10 @@ async function cargarYRenderRider() {
     }
 
     const rider = datos.rider;
-    const tieneArchivo = rider.nombre_archivo && rider.contenido_base64;
+    // contenido_base64 ahora es la URL pública del archivo físico
+    // (ej. /riders/rider_sqlite_7_a1b2c3.png), no un data-URI.
+    const urlArchivo = rider.contenido_base64;
+    const tieneArchivo = Boolean(rider.nombre_archivo && urlArchivo);
     const genero = rider.genero || "—";
 
     contenedor.innerHTML = `
@@ -248,7 +247,7 @@ async function cargarYRenderRider() {
         </div>
         ${tieneArchivo ? `
         <button
-          onclick="abrirRiderProveedores('${escaparJS(rider.contenido_base64)}')"
+          onclick="abrirRiderProveedores('${escaparJS(urlArchivo)}')"
           style="background:#2196F3; color:white; border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-weight:bold;">
           👁️ Abrir rider
         </button>` : ""}
@@ -263,16 +262,17 @@ function escaparJS(valor = "") {
   return String(valor).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 }
 
-function abrirRiderProveedores(contenidoBase64) {
-  const ventana = window.open();
-  if (!ventana) {
-    alert("El navegador bloqueó la ventana emergente. Permite ventanas emergentes para este sitio.");
+function abrirRiderProveedores(urlArchivo) {
+  if (!urlArchivo) {
+    alert("No hay archivo vinculado.");
     return;
   }
-  ventana.document.write(
-    '<iframe src="' + contenidoBase64 +
-    '" frameborder="0" style="border:0;top:0;left:0;bottom:0;right:0;width:100%;height:100%;position:fixed;" allowfullscreen></iframe>'
-  );
+  // El archivo ahora es una imagen física servida por el backend
+  // (/riders/<archivo>), así que simplemente la abrimos en una pestaña nueva.
+  const ventana = window.open(urlArchivo, "_blank");
+  if (!ventana) {
+    alert("El navegador bloqueó la ventana emergente. Permite ventanas emergentes para este sitio.");
+  }
 }
 
 async function cargarYRenderPersonal() {

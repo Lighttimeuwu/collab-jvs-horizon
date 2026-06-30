@@ -363,7 +363,7 @@ def crear_funcion_para_evento(cursor, evento_id, fecha, hora, ciudad):
 
 
 def actualizar_evento_desde_booking(evento_id, datos):
-    """Actualiza un evento SQLite desde Booking sin cambiar el flujo del frontend."""
+    """Actualiza un evento SQLite desde Booking y sincroniza las facturas viejas."""
     nombre = (datos.get("nombre") or "").strip()
     descripcion = (datos.get("descripcion") or "").strip()
     ubicacion = (datos.get("lugar") or datos.get("ubicacion") or "").strip()
@@ -379,19 +379,34 @@ def actualizar_evento_desde_booking(evento_id, datos):
 
     try:
         asegurar_columnas_eventos(cursor)
+        
+        # 1. Obtener el nombre antiguo del evento antes de modificarlo
+        # (Lo necesitamos porque la tabla Ventas_Web busca los eventos por su nombre)
+        cursor.execute("SELECT Nombre FROM Evento WHERE Evento_Id = ?", (evento_id,))
+        fila_antigua = cursor.fetchone()
+        if not fila_antigua:
+            raise ValueError("El evento no existe en SQLite")
+        nombre_antiguo = fila_antigua[0]
+
         ubicacion_id = obtener_o_crear_ubicacion(cursor, ubicacion)
         primera_fecha = agenda[0].get("fecha") if agenda else datos.get("fecha")
         primera_hora = agenda[0].get("hora") if agenda else hora
 
+        # 2. Actualizar el evento
         cursor.execute("""
             UPDATE Evento
             SET Nombre = ?, Fecha = ?, Hora = ?, Descripcion = ?, Ubicacion_Id = ?, Imagen = ?
             WHERE Evento_Id = ?
         """, (nombre, primera_fecha, primera_hora, descripcion, ubicacion_id, imagen, evento_id))
 
-        if cursor.rowcount == 0:
-            raise ValueError("El evento no existe en SQLite")
+        # 3. ACTUALIZAR LAS FACTURAS VIEJAS (Mis Entradas)
+        cursor.execute("""
+            UPDATE Ventas_Web
+            SET Evento = ?, Fecha_Evento = ?, Lugar = ?
+            WHERE Evento = ?
+        """, (nombre, primera_fecha, ubicacion, nombre_antiguo))
 
+        # 4. Actualizar las funciones
         funciones = obtener_funciones_evento(cursor, evento_id)
         for indice, item in enumerate(agenda):
             fecha_item = (item.get("fecha") or "").strip()

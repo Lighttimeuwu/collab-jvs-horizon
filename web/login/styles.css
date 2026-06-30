@@ -1945,3 +1945,9 @@ input[readonly] {
   box-shadow: 0 0 20px rgba(255, 0, 51, 0.9);
   transform: scale(1.02);
 }
+
+/* Color para los mensajes de error en los formularios */
+.registro-mensaje.error {
+  color: #e6d8db; /* Puedes cambiar este valor por el color hexadecimal que prefieras */
+  text-shadow: 0 0 8px rgba(255, 0, 51, 0.8); /* Opcional: le da un toque neón acorde a tu diseño */
+}

@@ -52,7 +52,7 @@
 <div id="modulo-raider" class="modulo">
     <div class="panel-raider" style="background: white; padding: 30px; border-radius: 8px; margin: 20px;">
         <h2 style="color:#c50b0b; border-bottom:2px solid #333; padding-bottom: 10px;">Gestión de Requerimientos Técnicos</h2>
-        <p>Selecciona un artista, elige su género musical y vincula su Rider (.pdf, .doc):</p>
+        <p>Selecciona un artista, elige su género musical y vincula su Rider (imagen: .jpg, .jpeg, .png, .webm):</p>
 
         <div class="panel-genero" style="border: 1px solid #ddd; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
             <h3>🎵 Género Musical del Artista / Evento</h3>
@@ -135,7 +135,7 @@
                 <input type="date" id="nuevoEventoFecha1" style="padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
                 <input type="date" id="nuevoEventoFecha2" style="padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
                 <input type="date" id="nuevoEventoFecha3" style="padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
-                <input type="file" id="nuevoEventoFoto" accept="image/*" style="padding: 8px;">
+                <input type="file" id="nuevoEventoFoto" accept=".jpg,.jpeg,.png,.webm" style="padding: 8px;">
                 <textarea id="nuevoEventoDescripcion" rows="4" placeholder="Descripción del evento (visible para el público)..." style="grid-column: 1 / -1; resize: vertical; padding: 8px; border-radius: 4px; border: 1px solid #ccc;"></textarea>
             </div>
             <button class="btn btn-publicar-evento" onclick="publicarEventoNuevo()" style="background:#007BFF; color:white; border:none; padding: 10px 20px; border-radius: 4px; cursor: pointer;">Publicar evento</button>
@@ -144,7 +144,7 @@
         <div style="margin:20px 0; display:flex; gap:10px; align-items:center; background: #eee; padding: 15px; border-radius: 6px;">
             <select id="selectArtistaRider" style="padding:10px; border-radius:5px; flex-grow:1; border: 1px solid #ccc;">
                 </select>
-            <input type="file" id="inputArchivoRider">
+            <input type="file" id="inputArchivoRider" accept=".jpg,.jpeg,.png,.webm">
             <button class="btn" onclick="vincularRider()" style="margin:0; background:#4CAF50; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer;">Guardar Rider</button>
         </div>
 
@@ -170,7 +170,7 @@
     <div class="modal-content">
         <h2 id="editTitle">Modificar Fechas</h2>
         <div class="editor-evento-meta">
-            <label>Subir nueva imagen<input type="file" id="editEventoImagenArchivo" accept="image/*"></label>
+            <label>Subir nueva imagen<input type="file" id="editEventoImagenArchivo" accept=".jpg,.jpeg,.png,.webm"></label>
             <label>Ubicación principal<select id="editEventoUbicacion"></select></label>
             <label class="editor-descripcion">Descripción<textarea id="editEventoDescripcion" rows="4" placeholder="Descripción larga del evento"></textarea></label>
         </div>

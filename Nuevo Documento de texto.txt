@@ -13,3 +13,60 @@ Dile algo como: "Aquí está el contexto de un proyecto que vengo desarrollando 
 
 Con eso, Claude en la cuenta nueva tendrá todo lo necesario para retomar sin que tengas que re-explicar la arquitectura completa ni repetir las decisiones que ya tomamos juntos (roles, sesión, anti-caché, etc.).
 Un detalle práctico: asegúrate de tener todos los archivos descargados desde el botón de descarga de cada uno (no solo este resumen) — son la fuente de verdad real del proyecto, el resumen solo da el contexto narrativo.
+
+
+
+def actualizar_evento_desde_booking(evento_id, datos):
+    """Actualiza un evento SQLite desde Booking sin cambiar el flujo del frontend."""
+    nombre = (datos.get("nombre") or "").strip()
+    descripcion = (datos.get("descripcion") or "").strip()
+    ubicacion = (datos.get("lugar") or datos.get("ubicacion") or "").strip()
+    hora = (datos.get("hora") or "").strip()
+    imagen = (datos.get("imagen") or "").strip()
+    agenda = datos.get("agenda") or []
+
+    if not nombre:
+        raise ValueError("El nombre del evento es obligatorio")
+
+    conexion = conectar()
+    cursor = conexion.cursor()
+
+    try:
+        asegurar_columnas_eventos(cursor)
+        ubicacion_id = obtener_o_crear_ubicacion(cursor, ubicacion)
+        primera_fecha = agenda[0].get("fecha") if agenda else datos.get("fecha")
+        primera_hora = agenda[0].get("hora") if agenda else hora
+
+        cursor.execute("""
+            UPDATE Evento
+            SET Nombre = ?, Fecha = ?, Hora = ?, Descripcion = ?, Ubicacion_Id = ?, Imagen = ?
+            WHERE Evento_Id = ?
+        """, (nombre, primera_fecha, primera_hora, descripcion, ubicacion_id, imagen, evento_id))
+
+        if cursor.rowcount == 0:
+            raise ValueError("El evento no existe en SQLite")
+
+        funciones = obtener_funciones_evento(cursor, evento_id)
+        for indice, item in enumerate(agenda):
+            fecha_item = (item.get("fecha") or "").strip()
+            hora_item = (item.get("hora") or "").strip()
+            ciudad_item = (item.get("lugar") or item.get("ciudad") or ubicacion or "").strip()
+            if not fecha_item or not hora_item:
+                continue
+
+            if indice < len(funciones):
+                cursor.execute("""
+                    UPDATE Funcion
+                    SET Fecha = ?, Hora = ?, Ciudad = ?
+                    WHERE Funcion_Id = ?
+                """, (fecha_item, hora_item, ciudad_item, funciones[indice]))
+            else:
+                crear_funcion_para_evento(cursor, evento_id, fecha_item, hora_item, ciudad_item)
+
+        conexion.commit()
+        return buscar_evento(evento_id)
+    except Exception:
+        conexion.rollback()
+        raise
+    finally:
+        conexion.close()
