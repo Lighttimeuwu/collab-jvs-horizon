@@ -119,13 +119,13 @@ async function registrarUsuario() {
     correo:     document.getElementById("registroCorreo").value.trim(),
     cedula:     document.getElementById("registroCedula").value.trim(),
     telefono:   document.getElementById("registroTelefono").value.trim(),
-    ciudad:     document.getElementById("ciudad").value.trim(), // Ahora lleva .trim() porque es un input de texto
+    ciudad:     document.getElementById("ciudad").value.trim(),
     contrasena: document.getElementById("pass").value.trim()
   };
 
-  // Aquí se valida (Se quitó "!datos.pais" de la condición)
+  // Aquí se valida (ciudad ya no es obligatoria, viene oculta con valor por defecto)
   if (!datos.nombre || !datos.apellido || !datos.correo || !datos.cedula ||
-      !datos.telefono || !datos.ciudad || !datos.contrasena) {
+      !datos.telefono || !datos.contrasena) {
     mensaje.innerText = "Completa todos los campos para registrarte.";
     mensaje.className = "registro-mensaje error";
     return;
@@ -161,7 +161,7 @@ async function registrarUsuario() {
     document.getElementById("registroCorreo").value   = "";
     document.getElementById("registroCedula").value   = "";
     document.getElementById("registroTelefono").value = "";
-    document.getElementById("ciudad").value           = ""; // Limpiamos el nuevo input de ciudad
+    document.getElementById("ciudad").value           = "No especificada";
     document.getElementById("pass").value             = "";
     
     setTimeout(() => {
